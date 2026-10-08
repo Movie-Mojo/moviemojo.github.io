@@ -1,21 +1,14 @@
 {
+  "id": "./",
   "name": "Movie Mojo",
-  "short_name": "MovieMojo",
-  "start_url": "/moviemojo.github.io/",
+  "short_name": "Movie Mojo",
+  "start_url": "./",
+  "scope": "./",
   "display": "standalone",
-  "background_color": "#111827",
-  "theme_color": "#06b6d4",
-  "orientation": "portrait",
+  "background_color": "#101016",
+  "theme_color": "#101016",
   "icons": [
-    {
-      "src": "/moviemojo.github.io/icon-192.png",
-      "type": "image/png",
-      "sizes": "192x192"
-    },
-    {
-      "src": "/moviemojo.github.io/icon-512.png",
-      "type": "image/png",
-      "sizes": "512x512"
-    }
+    { "src": "./icon-192.png", "type": "image/png", "sizes": "192x192" },
+    { "src": "./icon-512.png", "type": "image/png", "sizes": "512x512" }
   ]
 }
