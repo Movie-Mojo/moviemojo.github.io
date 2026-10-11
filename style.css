@@ -974,3 +974,14 @@ textarea:focus {
   outline: 2px solid var(--accent);
   outline-offset: 3px;
 }
+
+.movie-link svg {
+  width: 15px;
+  height: 15px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  flex-shrink: 0;
+}
