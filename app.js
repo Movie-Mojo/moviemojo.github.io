@@ -160,12 +160,12 @@ function revealScrollingCards() {
     for (const item of items) {
       if (!item.isIntersecting) continue;
       if (!matchMedia("(prefers-reduced-motion: reduce)").matches)
-        item.target.animate([{opacity:.7,transform:"translateY(6px)"},{opacity:1,transform:"none"}], {duration:240,easing:"ease-out"});
+        item.target.animate([{opacity:0,transform:"translateY(16px)"},{opacity:1,transform:"none"}], {duration:520,easing:"cubic-bezier(.2,.7,.2,1)"});
       scrollRevealObserver.unobserve(item.target);
     }
-  }, {threshold:.08});
+  }, {threshold:.02, rootMargin:"0px 0px -24px 0px"});
   app.querySelectorAll(".grid > .movie-card, .grid > .movie-card-wrap").forEach(card => {
-    if (card.getBoundingClientRect().top >= innerHeight) scrollRevealObserver.observe(card);
+    if (card.getBoundingClientRect().bottom > innerHeight) scrollRevealObserver.observe(card);
   });
 }
 function bindCards(list, entries = false) {
@@ -278,7 +278,7 @@ function render() {
   if (renderedPage !== state.tab) {
     app.getAnimations().forEach(animation => animation.cancel());
     if (!matchMedia("(prefers-reduced-motion: reduce)").matches)
-      app.animate([{opacity:.5},{opacity:1}], {duration:180,easing:"ease-out"});
+      app.animate([{opacity:0,transform:"translateY(10px)"},{opacity:1,transform:"none"}], {duration:420,easing:"cubic-bezier(.2,.7,.2,1)"});
     renderedPage = state.tab;
   }
   document
@@ -415,8 +415,14 @@ function auth(signup = false) {
       });
 }
 function watchlist() {
+  const previousPills = app.querySelector(".pills");
   const entries = state.movies.filter((m) => !!m.watched === state.watched);
   app.innerHTML = `<p class="eyebrow">Your movie night, sorted</p><h1>The watchlist.</h1><p class="subtitle">Less scrolling. More watching.</p><div class="toolbar"><select id="group-select" class="group-select" aria-label="Choose watchlist">${state.groups.map((g) => `<option value="${esc(g.group_id)}" ${g.group_id === state.group?.group_id ? "selected" : ""}>${esc(g.group_name)}</option>`).join("") || "<option>No watchlists yet</option>"}</select><button id="add-movie" class="button secondary">＋ Add a movie</button></div><section class="picker-hero"><div><p class="eyebrow">Let fate take the remote</p><h2>Can't decide tonight?</h2><p>One random pick from your unwatched movies.<br>Every movie gets an equal shot.</p></div><button class="button" id="pick">✦ Pick tonight</button></section><div class="section-row"><div class="pills"><button class="pill ${!state.watched ? "active" : ""}" id="unwatched">To watch</button><button class="pill ${state.watched ? "active" : ""}" id="watched">Watched</button></div><span class="count">${entries.length} movie${entries.length === 1 ? "" : "s"}</span></div><div class="grid">${entries.map((m, i) => card(m.movies, i, m)).join("") || empty(state.group ? "The opening scene." : "Bring your people together.", state.group ? "Add a few movies to get your next movie night started." : "Create a group, or a watchlist just for you.", `<button id="empty-action" class="button">${state.group ? "Find a movie" : "Create a watchlist"}</button>`)}</div>`;
+  if (previousPills) {
+    app.querySelector(".pills").replaceWith(previousPills);
+    previousPills.querySelector("#unwatched").classList.toggle("active", !state.watched);
+    previousPills.querySelector("#watched").classList.toggle("active", state.watched);
+  }
   $("#group-select").onchange = (e) =>
     run(e.currentTarget, () => switchGroup(e.target.value));
   $("#add-movie").onclick = () => go("discover");
