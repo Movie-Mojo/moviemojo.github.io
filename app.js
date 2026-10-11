@@ -126,11 +126,22 @@ async function tmdb(path, params = {}) {
 function movieCredits() {
   return `<section class="movie-credits" aria-label="About and credits"><h2>About & credits</h2><a class="tmdb-credit" href="https://www.themoviedb.org/" target="_blank" rel="noopener"><img src="./assets/tmdb-logo.svg" alt="The Movie Database (TMDB)" width="130" height="11"></a><p>Movie data and images provided by TMDB.</p><p>This product uses the TMDB API but is not endorsed or certified by TMDB.</p><p>Streaming availability provided by <a href="https://www.justwatch.com/" target="_blank" rel="noopener">JustWatch</a> via TMDB.</p></section>`;
 }
-function openModal(html) {
+function openModal(html, source = null) {
+  const start = source?.getBoundingClientRect();
   $("#modal-content").innerHTML = html;
-  if (!modal.open) modal.showModal();
+  if (!modal.open) {
+    modal.classList.toggle("from-card", !!start);
+    modal.showModal();
+    if (start && !matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      const end = modal.getBoundingClientRect();
+      modal.animate([
+        {opacity:.35, transform:`translate(${start.x + start.width/2 - end.x - end.width/2}px, ${start.y + start.height/2 - end.y - end.height/2}px) scale(${Math.max(.15,start.width/end.width)}, ${Math.max(.15,start.height/end.height)})`,borderRadius:"14px"},
+        {opacity:1, transform:"none",borderRadius:"24px"}
+      ], {duration:650,easing:"cubic-bezier(.16,1,.3,1)"});
+    }
+  }
 }
-modal.addEventListener("close", () => modal.classList.remove("movie-detail-dialog"));
+modal.addEventListener("close", () => { ++detailRequest; modal.classList.remove("movie-detail-dialog"); });
 $("#close-modal").onclick = () => modal.close();
 modal.addEventListener("click", (e) => {
   if (e.target === modal) modal.close();
@@ -155,18 +166,45 @@ function card(movie, index, entry = null) {
 let scrollRevealObserver;
 function revealScrollingCards() {
   scrollRevealObserver?.disconnect();
+  app.querySelectorAll(".scroll-pending").forEach(el => el.classList.remove("scroll-pending"));
   if (matchMedia("(prefers-reduced-motion: reduce)").matches || !("IntersectionObserver" in window)) return;
+  const rows = new Map();
+  app.querySelectorAll(".grid > .movie-card, .grid > .movie-card-wrap").forEach(card => {
+    const key = card.offsetTop;
+    if (!rows.has(key)) rows.set(key, []);
+    rows.get(key).push(card);
+  });
+  const pendingRows = new Map();
   scrollRevealObserver = new IntersectionObserver(items => {
     for (const item of items) {
       if (!item.isIntersecting) continue;
-      if (!matchMedia("(prefers-reduced-motion: reduce)").matches)
-        item.target.animate([{opacity:0,transform:"translateY(16px)"},{opacity:1,transform:"none"}], {duration:520,easing:"cubic-bezier(.2,.7,.2,1)"});
+      const row = pendingRows.get(item.target) || [];
+      for (const card of row) {
+        card.classList.remove("scroll-pending");
+        if (!matchMedia("(prefers-reduced-motion: reduce)").matches)
+          card.animate([{opacity:0,transform:"translateY(18px)"},{opacity:1,transform:"none"}], {duration:650,easing:"cubic-bezier(.2,.7,.2,1)"});
+      }
       scrollRevealObserver.unobserve(item.target);
+      pendingRows.delete(item.target);
     }
-  }, {threshold:.02, rootMargin:"0px 0px -24px 0px"});
-  app.querySelectorAll(".grid > .movie-card, .grid > .movie-card-wrap").forEach(card => {
-    if (card.getBoundingClientRect().bottom > innerHeight) scrollRevealObserver.observe(card);
-  });
+  }, {threshold:0, rootMargin:"0px 0px -40px 0px"});
+  for (const row of rows.values()) {
+    if (row[0].getBoundingClientRect().top < innerHeight - 40) continue;
+    row.forEach(card => card.classList.add("scroll-pending"));
+    pendingRows.set(row[0], row);
+    scrollRevealObserver.observe(row[0]);
+  }
+}
+const movieDetailCache = new Map();
+function loadMovieDetails(movie) {
+  const id = movie.tmdb_id || (Number.isInteger(movie.id) ? movie.id : null);
+  if (!id) return Promise.resolve(movie);
+  if (!movieDetailCache.has(id)) {
+    const request = tmdb(`movie/${id}`, {append_to_response:"watch/providers,videos,external_ids"}).catch(error => { movieDetailCache.delete(id); throw error; });
+    movieDetailCache.set(id, request);
+    if (movieDetailCache.size > 40) movieDetailCache.delete(movieDetailCache.keys().next().value);
+  }
+  return movieDetailCache.get(id);
 }
 function bindCards(list, entries = false) {
   revealScrollingCards();
@@ -176,15 +214,16 @@ function bindCards(list, entries = false) {
     const cancel = () => { clearTimeout(timer); timer = null; };
     btn.onclick = e => {
       if (suppressClick) { e.preventDefault(); suppressClick = false; return; }
-      run(btn, () => details(entries ? item.movies : item, entries ? item : null));
+      run(btn, () => details(entries ? item.movies : item, entries ? item : null, btn));
     };
+    btn.addEventListener("pointerdown", () => { loadMovieDetails(entries ? item.movies : item).catch(() => {}); }, {passive:true});
     if (!entries) return;
     btn.onpointerdown = e => {
       cancel(); suppressClick = false;
       if (e.button !== 0 || !e.isPrimary) return;
       origin = {x:e.clientX,y:e.clientY};
       timer = setTimeout(() => {
-        timer = null; if (!btn.isConnected) return; suppressClick = true; movieActions(item);
+        timer = null; if (!btn.isConnected) return; suppressClick = true; movieActions(item, btn);
       }, 550);
     };
     btn.onpointermove = e => {
@@ -193,15 +232,16 @@ function bindCards(list, entries = false) {
     btn.onpointerup = cancel;
     btn.onpointercancel = cancel;
     btn.onpointerleave = cancel;
-    btn.oncontextmenu = e => { e.preventDefault(); cancel(); suppressClick = true; movieActions(item); };
+    btn.oncontextmenu = e => { e.preventDefault(); cancel(); suppressClick = true; movieActions(item, btn); };
   });
   app.querySelectorAll("[data-card-menu]").forEach(btn => {
-    btn.onclick = () => movieActions(list[Number(btn.dataset.cardMenu)]);
+    btn.onclick = () => movieActions(list[Number(btn.dataset.cardMenu)], btn.closest(".movie-card-wrap").querySelector(".movie-card"));
   });
 }
-function movieActions(entry) {
+function movieActions(entry, source = null) {
+  ++detailRequest;
   const targets = state.groups.filter(g => g.group_id !== state.group?.group_id);
-  openModal(`<p class="eyebrow">Movie actions</p><h2>${esc(entry.movies.title)}</h2><div class="quick-movie-actions"><button id="quick-watched" class="button">${entry.watched ? "Move to watchlist" : "Mark watched"}</button><button id="quick-details" class="button secondary">Movie details</button>${targets.length ? `<label for="quick-target">Another watchlist</label><select id="quick-target">${targets.map(g => `<option value="${esc(g.group_id)}">${esc(g.group_name)}</option>`).join("")}</select><div class="quick-transfer"><button id="quick-copy" class="button secondary">Copy to list</button><button id="quick-move" class="button secondary">Move to list</button></div>` : ""}<button id="quick-remove" class="button danger">Remove from this list</button></div>`);
+  openModal(`<p class="eyebrow">Movie actions</p><h2>${esc(entry.movies.title)}</h2><div class="quick-movie-actions"><button id="quick-watched" class="button">${entry.watched ? "Move to watchlist" : "Mark watched"}</button><button id="quick-details" class="button secondary">Movie details</button>${targets.length ? `<label for="quick-target">Another watchlist</label><select id="quick-target">${targets.map(g => `<option value="${esc(g.group_id)}">${esc(g.group_name)}</option>`).join("")}</select><div class="quick-transfer"><button id="quick-copy" class="button secondary">Copy to list</button><button id="quick-move" class="button secondary">Move to list</button></div>` : ""}<button id="quick-remove" class="button danger">Remove from this list</button></div>`, source);
   $("#quick-details").onclick = () => details(entry.movies, entry);
   $("#quick-watched").onclick = e => run(e.currentTarget, async () => { await setWatched(entry,!entry.watched); modal.close(); });
   for (const action of ["copy","move"]) {
@@ -963,20 +1003,15 @@ function watchOptions(providers, region) {
     .join("");
   return `<section class="watch-options"><h2>Where to watch</h2><p class="muted">Availability in ${esc(region)} · JustWatch via TMDB</p>${sections || '<p class="muted">No viewing options reported for this country.</p>'}${sections && link ? '<p class="muted">Links open this movie’s TMDB watch page, where you can choose a service. Rental and purchase prices are not supplied here; confirm the current price before paying.</p>' : ""}</section>`;
 }
-async function details(movie, entry = null) {
+let detailRequest = 0;
+async function details(movie, entry = null, source = null) {
+  const request = ++detailRequest;
   modal.classList.add("movie-detail-dialog");
-  openModal('<p class="loading">Loading the feature…</p>');
+  const initialPoster = movie.poster_url || image(movie.poster_path);
+  openModal(`${initialPoster ? `<img class="detail-poster" src="${esc(initialPoster)}" alt="${esc(movie.title)} poster">` : ""}<div class="detail-heading"><p class="eyebrow">${entry ? "On your watchlist" : "Worth a watch"}</p><h2>${esc(movie.title)}</h2><p class="muted">${esc(movie.release_year || movie.release_date?.slice(0,4) || "")}</p></div><p class="overview">${esc(movie.overview || movie.description || "")}</p><p class="muted">Loading trailer and viewing options…</p>`, source);
   let data = movie;
-  if (movie.tmdb_id || Number.isInteger(movie.id)) {
-    try {
-      data = await tmdb(`movie/${movie.tmdb_id || movie.id}`, {
-        append_to_response: "watch/providers,videos,external_ids",
-      });
-    } catch (e) {
-      toast(e.message);
-    }
-  }
-  if (!modal.open) return;
+  try { data = await loadMovieDetails(movie); } catch (e) { toast(e.message); }
+  if (!modal.open || request !== detailRequest) return;
   const poster = movie.poster_url || image(data.poster_path);
   const trailer = data.videos?.results?.find(
     (v) => v.site === "YouTube" && v.type === "Trailer",
