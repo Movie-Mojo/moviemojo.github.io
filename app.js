@@ -144,11 +144,31 @@ function contributorName(entry) {
 }
 function card(movie, index, entry = null) {
   const poster = movie.poster_url || image(movie.poster_path);
-  const year =
-    movie.release_year || movie.release_date?.slice(0, 4) || "Year unknown";
-  return `${entry ? '<div class="movie-card-wrap">' : ""}<button class="movie-card" data-movie="${index}" aria-label="Details for ${esc(movie.title)}"><div class="poster-wrap">${poster ? `<img loading="lazy" src="${esc(poster)}" alt="${esc(movie.title)} poster" onerror="this.hidden=true">` : '<div class="poster-fallback">✦</div>'}${movie.vote_average ? `<span class="score">★ ${Number(movie.vote_average).toFixed(1)}</span>` : ""}</div><h3>${esc(movie.title)}</h3><p>${esc(year)}</p>${entry ? `<p class="added-by">Added by ${esc(contributorName(entry))}</p>${entry.suggestion_note ? `<p class="card-note">“${esc(entry.suggestion_note)}”</p>` : ""}` : ""}</button>${entry ? `<button class="card-menu-button" data-card-menu="${index}" aria-label="Actions for ${esc(movie.title)}"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/></svg></button></div>` : ""}`;
+  const year = movie.release_year || movie.release_date?.slice(0, 4) || "Year unknown";
+  const note = entry?.suggestion_note ? `<p class="card-note">“${esc(entry.suggestion_note)}”</p>` : "";
+  const contributor = entry ? `<p class="added-by">Added by ${esc(contributorName(entry))}</p>${note}` : "";
+  const movieCard = `<button class="movie-card" data-movie="${index}" aria-label="Details for ${esc(movie.title)}"><div class="poster-wrap">${poster ? `<img loading="lazy" src="${esc(poster)}" alt="${esc(movie.title)} poster" onerror="this.hidden=true">` : '<div class="poster-fallback">✦</div>'}${movie.vote_average ? `<span class="score">★ ${Number(movie.vote_average).toFixed(1)}</span>` : ""}</div><h3>${esc(movie.title)}</h3><p>${esc(year)}</p>${contributor}</button>`;
+  if (!entry) return movieCard;
+  return `<div class="movie-card-wrap">${movieCard}<button class="card-menu-button" data-card-menu="${index}" aria-label="Actions for ${esc(movie.title)}"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/></svg></button></div>`;
+}
+let scrollRevealObserver;
+function revealScrollingCards() {
+  scrollRevealObserver?.disconnect();
+  if (matchMedia("(prefers-reduced-motion: reduce)").matches || !("IntersectionObserver" in window)) return;
+  scrollRevealObserver = new IntersectionObserver(items => {
+    for (const item of items) {
+      if (!item.isIntersecting) continue;
+      if (!matchMedia("(prefers-reduced-motion: reduce)").matches)
+        item.target.animate([{opacity:.7,transform:"translateY(6px)"},{opacity:1,transform:"none"}], {duration:240,easing:"ease-out"});
+      scrollRevealObserver.unobserve(item.target);
+    }
+  }, {threshold:.08});
+  app.querySelectorAll(".grid > .movie-card, .grid > .movie-card-wrap").forEach(card => {
+    if (card.getBoundingClientRect().top >= innerHeight) scrollRevealObserver.observe(card);
+  });
 }
 function bindCards(list, entries = false) {
+  revealScrollingCards();
   app.querySelectorAll("[data-movie]").forEach(btn => {
     const item = list[Number(btn.dataset.movie)];
     let timer, origin, suppressClick = false;
@@ -251,7 +271,15 @@ async function switchGroup(id) {
   await loadMovies();
   render();
 }
+let renderedPage;
 function render() {
+  scrollRevealObserver?.disconnect();
+  if (renderedPage !== state.tab) {
+    app.getAnimations().forEach(animation => animation.cancel());
+    if (!matchMedia("(prefers-reduced-motion: reduce)").matches)
+      app.animate([{opacity:.5},{opacity:1}], {duration:180,easing:"ease-out"});
+    renderedPage = state.tab;
+  }
   document
     .querySelectorAll("[data-tab]")
     .forEach((b) => b.classList.toggle("active", b.dataset.tab === state.tab));
