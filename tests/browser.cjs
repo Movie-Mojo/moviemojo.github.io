@@ -425,7 +425,7 @@ const fixture = {
   );
   await page.locator("[data-tab=discover]").click();
   await page.locator("#results .movie-card").waitFor();
-  for (let i = 0; i < 6; i++) {
+  for (let i = 0; i < 9; i++) {
     // Even an already-open panel must close when a shortcut is selected.
     await page.locator("details.filters").evaluate((panel) => panel.open = true);
     await page.locator(`[data-mood="${i}"]`).click();
@@ -435,19 +435,26 @@ const fixture = {
     assert(await page.locator("#mood-description").isVisible());
     const params = new URL(urls.filter((u) => u.includes("/discover/movie")).at(-1)).searchParams;
     assert.equal(params.get("with_runtime.gte"), "40");
-    assert.equal(params.get("vote_count.gte"), i === 5 ? "500" : "100");
-    if (i === 0) { assert.equal(params.get("with_genres"), "35"); assert.equal(params.get("without_genres"), "27"); }
-    if (i === 1) assert.equal(params.get("with_genres"), "53|9648");
-    if (i === 2) assert.equal(params.get("with_genres"), "10751|16");
-    if (i === 3) assert.equal(params.get("with_genres"), "878|14");
-    if (i === 4) assert.equal(params.get("with_runtime.lte"), "90");
-    if (i === 5) assert.equal(params.get("vote_average.gte"), "7.5");
+    assert.equal(params.get("vote_count.gte"), i === 1 ? "500" : i === 0 ? "20" : "100");
+    if (i === 0) {
+      assert.equal(params.get("sort_by"), "primary_release_date.desc");
+      assert.equal(params.get("primary_release_date.gte"), new Date(Date.now() - 365 * 86400000).toISOString().slice(0, 10));
+      assert(!params.has("recentRelease"));
+    }
+    if (i === 1) assert.equal(params.get("vote_average.gte"), "7.5");
+    if (i === 2) { assert.equal(params.get("with_genres"), "35"); assert.equal(params.get("without_genres"), "27"); }
+    if (i === 3) assert.equal(params.get("with_genres"), "53|9648");
+    if (i === 4) assert.equal(params.get("with_genres"), "10751|16");
+    if (i === 5) assert.equal(params.get("with_genres"), "878|14");
+    if (i === 6) assert.equal(params.get("with_runtime.lte"), "90");
+    if (i === 7) assert.equal(params.get("with_genres"), "27");
+    if (i === 8) assert.equal(params.get("with_genres"), "28");
   }
-  await page.locator('[data-mood="5"]').click();
+  await page.locator('[data-mood="8"]').click();
   await page.waitForTimeout(200);
-  assert.equal(await page.locator('[data-mood="5"]').getAttribute("aria-pressed"), "false");
+  assert.equal(await page.locator('[data-mood="8"]').getAttribute("aria-pressed"), "false");
   assert.equal(await page.locator("#mood-description").isVisible(), false);
-  await page.locator('[data-mood="4"]').click();
+  await page.locator('[data-mood="6"]').click();
   await page.waitForTimeout(200);
   await page.locator("details.filters > summary").click();
   await page.locator("#discovery-services summary").click();
