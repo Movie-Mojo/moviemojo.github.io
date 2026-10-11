@@ -2,12 +2,13 @@ begin;
 create temp table mojo_test_ids (a uuid,b uuid,g uuid,h uuid);
 insert into mojo_test_ids values(gen_random_uuid(),gen_random_uuid(),null,null);
 insert into auth.users(id,email) select a,'mojo-test-a@example.invalid' from mojo_test_ids union all select b,'mojo-test-b@example.invalid' from mojo_test_ids;
-update auth.users set email_confirmed_at=now() where email like '%example.invalid';
+update auth.users set email_confirmed_at=now() where id in(select a from mojo_test_ids union select b from mojo_test_ids);
 update public.user_profiles set approved=true where id in(select a from mojo_test_ids union select b from mojo_test_ids);
 select set_config('request.jwt.claim.sub',(select a::text from mojo_test_ids),true);
 update mojo_test_ids set g=mojo_private.create_group('Mojo transactional QA');
 select set_config('request.jwt.claim.sub',(select b::text from mojo_test_ids),true);
 update mojo_test_ids set h=mojo_private.create_group('Other private group');
+select set_config('mojo.test.invite',(public.mojo_share_invite((select h from mojo_test_ids))->>'token'),true);
 select set_config('mojo.test.group',(select g::text from mojo_test_ids),true);
 select set_config('mojo.test.other',(select h::text from mojo_test_ids),true);
 select set_config('mojo.test.user',(select a::text from mojo_test_ids),true);
@@ -20,7 +21,7 @@ do $$ declare n int; gid uuid; begin
  if n<>0 then raise exception 'Other private group leaked'; end if;
  select count(*) into n from public.get_user_groups_with_counts(current_setting('mojo.test.user')::uuid);
  if n<>2 then raise exception 'Group count RPC failed'; end if;
- perform public.mojo_join_group(current_setting('mojo.test.other')::uuid);
+ perform public.mojo_join_group(current_setting('mojo.test.invite')::uuid);
  select count(*) into n from public.groups where id=current_setting('mojo.test.other')::uuid;
  if n<>1 then raise exception 'Invited group not visible after join'; end if;
  begin
