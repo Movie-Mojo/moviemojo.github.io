@@ -312,7 +312,8 @@ const fixture = {
                 },
               },
             },
-            videos: { results: [] },
+            videos: { results: [{ site: "YouTube", type: "Trailer", key: "test-trailer" }] },
+            external_ids: { imdb_id: "tt1375666" },
           }
         : {
             results: [
@@ -350,6 +351,10 @@ const fixture = {
     .waitFor();
   await page.getByRole("heading", { name: "Rent", exact: true }).waitFor();
   await page.getByRole("heading", { name: "Buy", exact: true }).waitFor();
+  assert.equal(await page.locator(".detail-heading .movie-link").count(), 2);
+  assert.equal(await page.locator(".details-actions a").count(), 0);
+  assert.equal(await page.getByRole("link", { name: "Watch trailer on YouTube" }).getAttribute("href"), "https://www.youtube.com/watch?v=test-trailer");
+  assert.equal(await page.getByRole("link", { name: "View movie on IMDb" }).getAttribute("href"), "https://www.imdb.com/title/tt1375666/");
   assert.equal(await page.locator(".watch-offer").count(), 4);
   assert(
     (await page.locator(".watch-offer").first().getAttribute("href")).includes(
