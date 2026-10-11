@@ -46,3 +46,5 @@ Browser tests use Playwright and a local server. Set `NODE_PATH` to your Playwri
 Supabase's remaining platform advisories are an available Postgres security upgrade and disabled leaked-password protection. Configure these in the project dashboard.
 
 Movie metadata is provided by TMDB. This product uses the TMDB API but is not endorsed or certified by TMDB. Streaming information is provided by JustWatch via TMDB.
+
+Friends use shared friend codes with accepted requests. Group members can send in-app invitations to accepted friends; recipients must accept before joining. Emails remain private. `database-friends.sql` records the checked RPC and private social tables.

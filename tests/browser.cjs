@@ -82,6 +82,23 @@ const fixture = {
             signOut: async () => ({ error: null }),
           },
           rpc: async (name, args) => {
+            if (name === "mojo_social") {
+              fixture.socialCalls = (fixture.socialCalls || []).concat(args);
+              return {
+                data: {
+                  friends: [
+                    {
+                      id: "33333333-3333-3333-3333-333333333333",
+                      name: "Sam",
+                      accepted: true,
+                      incoming: false,
+                    },
+                  ],
+                  invitations: [],
+                },
+                error: null,
+              };
+            }
             if (name === "mojo_set_suggestion_note")
               fixture.movies.find(
                 (m) => m.id === args.target_entry,
@@ -384,7 +401,27 @@ const fixture = {
     await page.locator("#invite-code").inputValue(),
     fixture.groups[0].group_id,
   );
+  await page.locator("#send-direct-invite").click();
+  await page.waitForFunction(() =>
+    testData.socialCalls.some((x) => x.action === "invite"),
+  );
   await page.locator("#close-modal").click();
+  await page.locator("[data-tab=friends]").click();
+  await page.getByRole("heading", { name: "Friends.", exact: true }).waitFor();
+  await page.getByRole("heading", { name:"Sam", exact: true }).waitFor();
+  await page
+    .locator("#friend-code")
+    .fill("44444444-4444-4444-4444-444444444444");
+  await page.locator("#friend-request button").click();
+  await page.waitForFunction(() =>
+    testData.socialCalls.some((x) => x.action === "request"),
+  );
+  assert(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= innerWidth,
+    ),
+  );
+  await page.screenshot({ path: "/tmp/mojo-friends.png", fullPage: true });
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.locator("[data-tab=watchlist]").click();
   await page.screenshot({ path: "/tmp/mojo-desktop.png", fullPage: true });
