@@ -1071,8 +1071,8 @@ textarea:focus {
 @keyframes toast-arrive { from { opacity: 0; transform: translate(-50%, 5px); } to { opacity: 1; transform: translateX(-50%); } }
 
 .availability-switch::before { content: ""; position: absolute; top: 5px; bottom: 5px; left: 5px; width: calc((100% - 18px) / 3); border-radius: 10px; background: var(--accent); pointer-events: none; }
-.availability-switch:has([data-availability="buy-rent"][aria-pressed="true"])::before { transform: translateX(calc(100% + 4px)); }
-.availability-switch:has([data-availability="all"][aria-pressed="true"])::before { transform: translateX(calc(200% + 8px)); }
+.availability-switch:has([data-availability="streaming"][aria-pressed="true"])::before { transform: translateX(calc(100% + 4px)); }
+.availability-switch:has([data-availability="buy-rent"][aria-pressed="true"])::before { transform: translateX(calc(200% + 8px)); }
 @media (prefers-reduced-motion: no-preference) {
   .availability-switch::before { transition: transform 360ms cubic-bezier(.2,.7,.2,1); }
 }

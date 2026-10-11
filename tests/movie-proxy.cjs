@@ -49,5 +49,8 @@ const { readFileSync } = require('node:fs');
  await trending(request({path:'trending/movie/week',params:{page:1}}));
  assert.equal(gates,2,'cached pages still require authorization');
  assert.equal(providerCalls,2,'availability is cached');
+ const all=await trending(request({path:'trending/movie/week',params:{page:2,include_availability:false}}));
+ assert.equal(all.status,200);
+ assert.equal(providerCalls,2,'All must skip availability requests');
  console.log('PASS: proxy allowlist, bounded inputs, authentication gate, shared-limit responses, cache authorization/expiry, secret-free errors, fixed upstream host.');
 })().catch(e=>{console.error(e);process.exit(1)});
