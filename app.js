@@ -146,23 +146,66 @@ function card(movie, index, entry = null) {
   const poster = movie.poster_url || image(movie.poster_path);
   const year =
     movie.release_year || movie.release_date?.slice(0, 4) || "Year unknown";
-  return `<button class="movie-card" data-movie="${index}" aria-label="Details for ${esc(movie.title)}"><div class="poster-wrap">${poster ? `<img loading="lazy" src="${esc(poster)}" alt="${esc(movie.title)} poster" onerror="this.hidden=true">` : '<div class="poster-fallback">✦</div>'}${movie.vote_average ? `<span class="score">★ ${Number(movie.vote_average).toFixed(1)}</span>` : ""}</div><h3>${esc(movie.title)}</h3><p>${esc(year)}</p>${entry ? `<p class="added-by">Added by ${esc(contributorName(entry))}</p>${entry.suggestion_note ? `<p class="card-note">“${esc(entry.suggestion_note)}”</p>` : ""}` : ""}</button>`;
+  return `${entry ? '<div class="movie-card-wrap">' : ""}<button class="movie-card" data-movie="${index}" aria-label="Details for ${esc(movie.title)}"><div class="poster-wrap">${poster ? `<img loading="lazy" src="${esc(poster)}" alt="${esc(movie.title)} poster" onerror="this.hidden=true">` : '<div class="poster-fallback">✦</div>'}${movie.vote_average ? `<span class="score">★ ${Number(movie.vote_average).toFixed(1)}</span>` : ""}</div><h3>${esc(movie.title)}</h3><p>${esc(year)}</p>${entry ? `<p class="added-by">Added by ${esc(contributorName(entry))}</p>${entry.suggestion_note ? `<p class="card-note">“${esc(entry.suggestion_note)}”</p>` : ""}` : ""}</button>${entry ? `<button class="card-menu-button" data-card-menu="${index}" aria-label="Actions for ${esc(movie.title)}"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/></svg></button></div>` : ""}`;
 }
 function bindCards(list, entries = false) {
-  app
-    .querySelectorAll("[data-movie]")
-    .forEach(
-      (btn) =>
-        (btn.onclick = () =>
-          run(btn, () =>
-            details(
-              entries
-                ? list[Number(btn.dataset.movie)].movies
-                : list[Number(btn.dataset.movie)],
-              entries ? list[Number(btn.dataset.movie)] : null,
-            ),
-          )),
-    );
+  app.querySelectorAll("[data-movie]").forEach(btn => {
+    const item = list[Number(btn.dataset.movie)];
+    let timer, origin, suppressClick = false;
+    const cancel = () => { clearTimeout(timer); timer = null; };
+    btn.onclick = e => {
+      if (suppressClick) { e.preventDefault(); suppressClick = false; return; }
+      run(btn, () => details(entries ? item.movies : item, entries ? item : null));
+    };
+    if (!entries) return;
+    btn.onpointerdown = e => {
+      cancel(); suppressClick = false;
+      if (e.button !== 0 || !e.isPrimary) return;
+      origin = {x:e.clientX,y:e.clientY};
+      timer = setTimeout(() => {
+        timer = null; if (!btn.isConnected) return; suppressClick = true; movieActions(item);
+      }, 550);
+    };
+    btn.onpointermove = e => {
+      if (origin && Math.hypot(e.clientX-origin.x,e.clientY-origin.y)>10) cancel();
+    };
+    btn.onpointerup = cancel;
+    btn.onpointercancel = cancel;
+    btn.onpointerleave = cancel;
+    btn.oncontextmenu = e => { e.preventDefault(); cancel(); suppressClick = true; movieActions(item); };
+  });
+  app.querySelectorAll("[data-card-menu]").forEach(btn => {
+    btn.onclick = () => movieActions(list[Number(btn.dataset.cardMenu)]);
+  });
+}
+function movieActions(entry) {
+  const targets = state.groups.filter(g => g.group_id !== state.group?.group_id);
+  openModal(`<p class="eyebrow">Movie actions</p><h2>${esc(entry.movies.title)}</h2><div class="quick-movie-actions"><button id="quick-watched" class="button">${entry.watched ? "Move to watchlist" : "Mark watched"}</button><button id="quick-details" class="button secondary">Movie details</button>${targets.length ? `<label for="quick-target">Another watchlist</label><select id="quick-target">${targets.map(g => `<option value="${esc(g.group_id)}">${esc(g.group_name)}</option>`).join("")}</select><div class="quick-transfer"><button id="quick-copy" class="button secondary">Copy to list</button><button id="quick-move" class="button secondary">Move to list</button></div>` : ""}<button id="quick-remove" class="button danger">Remove from this list</button></div>`);
+  $("#quick-details").onclick = () => details(entry.movies, entry);
+  $("#quick-watched").onclick = e => run(e.currentTarget, async () => { await setWatched(entry,!entry.watched); modal.close(); });
+  for (const action of ["copy","move"]) {
+    const button = $("#quick-"+action);
+    if (!button) continue;
+    button.onclick = e => run(e.currentTarget, async () => {
+      const target = $("#quick-target").value;
+      if (!targets.some(g => g.group_id === target)) throw new Error("Choose a watchlist.");
+      const duplicate = checked(await db.from("group_movies").select("id").eq("group_id",target).eq("movie_id",entry.movies.id).limit(1));
+      if (duplicate.length) throw new Error("This movie is already on that watchlist.");
+      if (action === "move") {
+        const rows = checked(await db.from("group_movies").update({group_id:target}).eq("id",entry.id).select("id"));
+        if (!rows.length) throw new Error("This movie could not be moved. Refresh and try again.");
+      } else {
+        checked(await db.from("group_movies").insert({group_id:target,movie_id:entry.movies.id,added_by:state.user.id,suggestion_note:entry.suggestion_note || "",watched:entry.watched,watched_at:entry.watched_at || null}));
+      }
+      await loadMovies(); render(); modal.close(); toast(action === "move" ? "Moved to watchlist." : "Copied to watchlist.");
+    });
+  }
+  $("#quick-remove").onclick = e => run(e.currentTarget, async () => {
+    if (!confirm(`Remove “${entry.movies.title}” from this watchlist?`)) return;
+    const rows = checked(await db.from("group_movies").delete().eq("id",entry.id).select("id"));
+    if (!rows.length) throw new Error("You do not have permission to remove this movie.");
+    await loadMovies(); render(); modal.close(); toast("Removed from watchlist.");
+  });
 }
 async function loadGroups() {
   state.personalGroup = checked(await db.rpc("mojo_personal_list"));
@@ -184,7 +227,7 @@ async function loadMovies() {
         await db
           .from("group_movies")
           .select(
-            "id,watched,added_by,added_at,suggestion_note,movies(id,title,description,poster_url,release_year,tmdb_id)",
+            "id,watched,watched_at,added_by,added_at,suggestion_note,movies(id,title,description,poster_url,release_year,tmdb_id)",
           )
           .eq("group_id", state.group.group_id)
           .order("added_at", { ascending: false }),
