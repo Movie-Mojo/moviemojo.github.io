@@ -72,6 +72,7 @@ const state = {
   page: 1,
   total: 1,
   mode: "discover",
+  viewingMode: "streaming",
   query: "",
   filters: {},
   request: 0,
@@ -450,7 +451,19 @@ function discover() {
     ["GB", "United Kingdom"],
     ["CA", "Canada"],
     ["AU", "Australia"],
-  ])}<div class="streaming-filter"><label>Streaming services</label><div id="discovery-services"></div></div></div><label class="checkbox"><input type="checkbox" id="hide-watched" ${state.filters.hideWatched ? "checked" : ""}> Hide movies watched by this group</label><div class="filter-actions"><button class="button" type="submit">Find movies →</button><button class="button secondary" id="reset-filters" type="button">Reset</button></div></form></details><div class="section-row"><h2 id="results-title">${state.mode === "search" ? "Search results" : "Your next obsession"}</h2><span class="count">${state.group ? esc(state.group.group_name) : "Choose a group to save movies"}</span></div><div id="results" class="grid"></div><button class="button secondary full" id="load-more" hidden>Load more movies</button><div class="manual"><button id="manual-add" class="link-button">Can't find it? Add a movie manually</button></div>`;
+  ])}<div class="streaming-filter"><label>Streaming services</label><div id="discovery-services"></div></div></div><label class="checkbox"><input type="checkbox" id="hide-watched" ${state.filters.hideWatched ? "checked" : ""}> Hide movies watched by this group</label><div class="filter-actions"><button class="button" type="submit">Find movies →</button><button class="button secondary" id="reset-filters" type="button">Reset</button></div></form></details><div class="section-row"><h2 id="results-title">${state.mode === "search" ? "Search results" : "Your next obsession"}</h2><span class="count">${state.group ? esc(state.group.group_name) : "Choose a group to save movies"}</span></div><div class="availability-switch" role="group" aria-label="Movie availability"><button type="button" data-availability="streaming" aria-pressed="${state.viewingMode === "streaming"}">Streaming</button><button type="button" data-availability="buy-rent" aria-pressed="${state.viewingMode === "buy-rent"}">Buy/Rent</button></div><p id="availability-hint" class="muted" hidden>Title search shows all matches. Choose Streaming or Buy/Rent to browse by availability.</p><div id="results" class="grid"></div><button class="button secondary full" id="load-more" hidden>Load more movies</button><div class="manual"><button id="manual-add" class="link-button">Can't find it? Add a movie manually</button></div>`;
+  app.querySelectorAll("[data-availability]").forEach((button) => {
+    button.onclick = () => {
+      state.viewingMode = button.dataset.availability;
+      state.mode = "discover";
+      state.query = "";
+      $("#query").value = "";
+      app.querySelectorAll("[data-availability]").forEach((option) =>
+        option.setAttribute("aria-pressed", String(option.dataset.availability === state.viewingMode)),
+      );
+      fetchDiscover();
+    };
+  });
   $("#manual-add").onclick = manualAdd;
   app.querySelectorAll("[data-mood]").forEach(
     (button) =>
@@ -749,9 +762,9 @@ async function fetchDiscover(append = false) {
               ? `${f.yearTo}-12-31`
               : new Date().toISOString().slice(0, 10),
             with_watch_providers: providerIds.join("|"),
-            with_watch_monetization_types: providerIds.length
-              ? "flatrate|free|ads"
-              : "",
+            with_watch_monetization_types: state.viewingMode === "buy-rent"
+              ? "rent|buy"
+              : "flatrate|free|ads",
             watch_region: f.watch_region || state.streamingRegion,
           };
     for (const key of [
@@ -787,6 +800,7 @@ async function fetchDiscover(append = false) {
   }
 }
 function renderResults() {
+  if ($("#availability-hint")) $("#availability-hint").hidden = state.mode !== "search";
   if ($("#results-title"))
     $("#results-title").textContent =
       state.mode === "search" ? "Search results" : "Your next obsession";

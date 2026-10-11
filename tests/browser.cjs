@@ -494,7 +494,15 @@ const fixture = {
   await page.locator("#filter-form button[type=submit]").click();
   await page.waitForTimeout(200);
   assert(!lastDiscover().searchParams.has("with_watch_providers"));
-  assert(!lastDiscover().searchParams.has("with_watch_monetization_types"));
+  assert.equal(lastDiscover().searchParams.get("with_watch_monetization_types"), "flatrate|free|ads");
+  await page.locator('[data-availability="buy-rent"]').click();
+  await page.waitForTimeout(300);
+  assert.equal(lastDiscover().searchParams.get("with_watch_monetization_types"), "rent|buy");
+  assert(!lastDiscover().searchParams.has("with_watch_providers"));
+  assert.equal(await page.locator('[data-availability="buy-rent"]').getAttribute("aria-pressed"), "true");
+  await page.locator('[data-availability="streaming"]').click();
+  await page.waitForTimeout(300);
+  assert.equal(lastDiscover().searchParams.get("with_watch_monetization_types"), "flatrate|free|ads");
   await page.locator("#query").fill("Inception");
   await page.locator("#search-form").evaluate((f) => f.requestSubmit());
   await page.waitForTimeout(200);
