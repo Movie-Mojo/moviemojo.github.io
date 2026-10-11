@@ -111,16 +111,17 @@ function checked(result) {
   return result.data;
 }
 async function tmdb(path, params = {}) {
-  const url = new URL(`https://api.themoviedb.org/3/${path}`);
-  url.searchParams.set("api_key", TMDB_API_KEY);
-  for (const [k, v] of Object.entries(params))
-    if (v !== "" && v != null) url.searchParams.set(k, v);
-  const res = await fetch(url);
-  if (!res.ok)
-    throw new Error(
-      "Movie information is temporarily unavailable. Please try again.",
-    );
-  return res.json();
+  const filters = Object.fromEntries(Object.entries(params).filter(([, v]) => v !== "" && v != null));
+  const { data, error } = await db.functions.invoke("movie-data", { body: { path, params: filters } });
+  if (error) {
+    const status = error.context?.status;
+    throw new Error(status === 429
+      ? "Too many movie requests. Try again in a minute."
+      : status === 401 || status === 403
+        ? "Please sign in with a verified account to find movies."
+        : "Movie information is temporarily unavailable. Please try again.");
+  }
+  return data;
 }
 function openModal(html) {
   $("#modal-content").innerHTML = html;
