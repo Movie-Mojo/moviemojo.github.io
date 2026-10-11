@@ -3,6 +3,7 @@ const integer = (v, min, max) => /^\d+$/.test(v) && Number(v) >= min && Number(v
 const ids = (v) => /^\d+(?:[|,]\d+)*$/.test(v) && v.length <= 1000;
 const date = (v) => /^\d{4}-\d{2}-\d{2}$/.test(v) && v >= "1874-01-01" && v <= "2100-12-31" && new Date(v).toISOString().slice(0, 10) === v;
 const rules = {
+  include_availability: v => ["true","false"].includes(v),
   page: (v) => integer(v, 1, 500),
   query: (v) => v.trim().length > 0 && v.length <= 200,
   include_adult: (v) => v === "false",
@@ -23,7 +24,7 @@ export function movieURL(body) {
   if (!["discover/movie", "search/movie", "watch/providers/movie", "trending/movie/week"].includes(path) && !(typeof path === "string" && /^movie\/[1-9]\d{0,11}$/.test(path))) throw Error("Invalid endpoint");
   const params = body.params ?? {};
   if (typeof params !== "object" || Array.isArray(params)) throw Error("Invalid filters");
-  const allowed = path === "trending/movie/week" ? ["page"] : path === "search/movie" ? ["query", "page", "include_adult"] : path === "watch/providers/movie" ? ["watch_region"] : path.startsWith("movie/") ? ["append_to_response"] : Object.keys(rules).filter((k) => !["query", "append_to_response"].includes(k));
+  const allowed = path === "trending/movie/week" ? ["page", "include_availability"] : path === "search/movie" ? ["query", "page", "include_adult"] : path === "watch/providers/movie" ? ["watch_region"] : path.startsWith("movie/") ? ["append_to_response"] : Object.keys(rules).filter((k) => !["query", "append_to_response", "include_availability"].includes(k));
   const url = new URL(`https://api.themoviedb.org/3/${path}`);
   for (const [key, raw] of Object.entries(params).sort(([a], [b]) => a.localeCompare(b))) {
     if (!allowed.includes(key) || !["string", "number", "boolean"].includes(typeof raw) || !rules[key](String(raw))) throw Error("Invalid filters");
@@ -76,11 +77,13 @@ export function createHandler({ env, fetch, now = Date.now }) {
       if (allowed !== true) { headers["Retry-After"] = "60"; return reply(429, { error: "Too many movie requests. Try again in a minute." }); }
       const cacheKey = url.toString(), hit = cache.get(cacheKey);
       if (hit && hit.expires > now()) return reply(200, hit.data);
+      const includeAvailability = url.searchParams.get("include_availability") !== "false";
+      url.searchParams.delete("include_availability");
       url.searchParams.set("api_key", secret);
       const upstream = await fetch(url, { headers: { Accept: "application/json" }, redirect: "error", signal: AbortSignal.timeout(10000) });
       if (!upstream.ok) return reply(upstream.status === 404 ? 404 : 502, { error: "Movie information temporarily unavailable" });
       const data = await upstream.json();
-      if (url.pathname.endsWith("/trending/movie/week") && Array.isArray(data.results)) {
+      if (includeAvailability && url.pathname.endsWith("/trending/movie/week") && Array.isArray(data.results)) {
         // One authenticated request supplies availability for a bounded TMDB page.
         const movies = data.results.slice(0,20);
         let next = 0;

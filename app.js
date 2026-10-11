@@ -72,7 +72,7 @@ const state = {
   page: 1,
   total: 1,
   mode: "discover",
-  viewingMode: "streaming",
+  viewingMode: "all",
   query: "",
   filters: { mood: "Trending Now", trending: true },
   request: 0,
@@ -590,7 +590,7 @@ function discover() {
     ["GB", "United Kingdom"],
     ["CA", "Canada"],
     ["AU", "Australia"],
-  ])}<div class="streaming-filter"><label>Streaming services</label><div id="discovery-services"></div></div></div><label class="checkbox"><input type="checkbox" id="hide-watched" ${state.filters.hideWatched ? "checked" : ""}> Hide movies watched by this group</label><div class="filter-actions"><button class="button" type="submit">Find movies →</button><button class="button secondary" id="reset-filters" type="button">Reset</button></div></form></details><div class="section-row"><h2 id="results-title">${state.mode === "search" ? "Search results" : state.filters.trending ? "Trending this week" : "Your next obsession"}</h2><span class="count">${state.group ? esc(state.group.group_name) : "Choose a group to save movies"}</span></div><div class="availability-switch" role="group" aria-label="Movie availability"><button type="button" data-availability="streaming" aria-pressed="${state.viewingMode === "streaming"}">Streaming</button><button type="button" data-availability="buy-rent" aria-pressed="${state.viewingMode === "buy-rent"}">Buy/Rent</button><button type="button" data-availability="all" aria-pressed="${state.viewingMode === "all"}">All</button></div><p id="availability-hint" class="muted" hidden>Title search shows all matches. Choose an availability option to return to browsing.</p><div id="results" class="grid"></div><button class="button secondary full" id="load-more" hidden>Load more movies</button><div class="manual"><button id="manual-add" class="link-button">Can't find it? Add a movie manually</button></div>`;
+  ])}<div class="streaming-filter"><label>Streaming services</label><div id="discovery-services"></div></div></div><label class="checkbox"><input type="checkbox" id="hide-watched" ${state.filters.hideWatched ? "checked" : ""}> Hide movies watched by this group</label><div class="filter-actions"><button class="button" type="submit">Find movies →</button><button class="button secondary" id="reset-filters" type="button">Reset</button></div></form></details><div class="section-row"><h2 id="results-title">${state.mode === "search" ? "Search results" : state.filters.trending ? "Trending this week" : "Your next obsession"}</h2><span class="count">${state.group ? esc(state.group.group_name) : "Choose a group to save movies"}</span></div><div class="availability-switch" role="group" aria-label="Movie availability"><button type="button" data-availability="all" aria-pressed="${state.viewingMode === "all"}">All</button><button type="button" data-availability="streaming" aria-pressed="${state.viewingMode === "streaming"}">Streaming</button><button type="button" data-availability="buy-rent" aria-pressed="${state.viewingMode === "buy-rent"}">Buy/Rent</button></div><p id="availability-hint" class="muted" hidden>Title search shows all matches. Choose an availability option to return to browsing.</p><div id="results" class="grid"></div><button class="button secondary full" id="load-more" hidden>Load more movies</button><div class="manual"><button id="manual-add" class="link-button">Can't find it? Add a movie manually</button></div>`;
   app.querySelectorAll("[data-availability]").forEach((button) => {
     button.onclick = () => {
       state.viewingMode = button.dataset.availability;
@@ -928,7 +928,7 @@ async function fetchDiscover(append = false) {
       delete params[key];
     const data = await tmdb(
       state.mode === "search" ? "search/movie" : f.trending ? "trending/movie/week" : "discover/movie",
-      f.trending && state.mode !== "search" ? {page:nextPage} : { ...params, page: nextPage, include_adult: false },
+      f.trending && state.mode !== "search" ? {page:nextPage, include_availability:state.viewingMode !== "all" || providerIds.length > 0} : { ...params, page: nextPage, include_adult: false },
     );
     if (request !== state.request || !results.isConnected) return;
     let lastPage = nextPage;
@@ -957,28 +957,6 @@ async function fetchDiscover(append = false) {
     };
     if (request !== state.request || !results.isConnected) return;
     publish();
-    // Availability often removes most of a trending page. Fill at least two
-    // desktop rows, preserving rank and bounding the number of detail requests.
-    const watched = new Set(state.movies.filter(m=>m.watched).map(m=>String(m.movies.tmdb_id)));
-    const visibleCount = () => movies.filter(m=>!f.hideWatched || !watched.has(String(m.id))).length;
-    try {
-      while (trending && visibleCount()<12 && lastPage<totalPages && lastPage<nextPage+2) {
-        const moreButton = $("#load-more");
-        moreButton.disabled = true;
-        moreButton.textContent = "Finding more matches…";
-        const more = await tmdb("trending/movie/week", {page:lastPage+1});
-        const matches = await selectMovies(more.results);
-        if (request !== state.request || !results.isConnected) return;
-        ++lastPage;
-        movies = [...movies,...matches].filter((movie,i,list)=>list.findIndex(other=>other.id===movie.id)===i);
-        publish();
-      }
-    } finally {
-      if (request === state.request && results.isConnected) {
-        $("#load-more").disabled = false;
-        $("#load-more").textContent = "Load more movies";
-      }
-    }
   } catch (e) {
     if (request === state.request && results.isConnected) {
       if (!append && !published)
