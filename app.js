@@ -938,11 +938,10 @@ async function fetchDiscover(append = false) {
     const selectMovies = async batch => {
       let movies = batch.filter(movie => !movie.adult);
       if (trending && (state.viewingMode !== "all" || providerIds.length)) {
-        const available = await Promise.all(movies.map(async movie => {
-          const detail = await loadMovieDetails(movie);
-          const offers = detail["watch/providers"]?.results?.[f.watch_region || state.streamingRegion];
+        const available = movies.map(movie => {
+          const offers = movie.watch_availability?.[f.watch_region || state.streamingRegion];
           return types.some(type => offers?.[type]?.some(provider => !providerIds.length || providerIds.includes(provider.provider_id)));
-        }));
+        });
         movies = movies.filter((_,i) => available[i]);
       }
       return movies;

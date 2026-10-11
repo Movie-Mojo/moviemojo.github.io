@@ -80,7 +80,29 @@ export function createHandler({ env, fetch, now = Date.now }) {
       const upstream = await fetch(url, { headers: { Accept: "application/json" }, redirect: "error", signal: AbortSignal.timeout(10000) });
       if (!upstream.ok) return reply(upstream.status === 404 ? 404 : 502, { error: "Movie information temporarily unavailable" });
       const data = await upstream.json();
-      if (cache.size >= 100) cache.delete(cache.keys().next().value);
+      if (url.pathname.endsWith("/trending/movie/week") && Array.isArray(data.results)) {
+        // One authenticated request supplies availability for a bounded TMDB page.
+        const movies = data.results.slice(0,20);
+        let next = 0;
+        await Promise.all(Array.from({length:Math.min(5,movies.length)}, async () => {
+          while (next < movies.length) {
+            const movie = movies[next++];
+            if (!Number.isInteger(movie.id) || movie.id <= 0) continue;
+            const providerURL = `https://api.themoviedb.org/3/movie/${movie.id}/watch/providers`;
+            const saved = cache.get(providerURL);
+            if (saved && saved.expires > now()) { movie.watch_availability = saved.data.results; continue; }
+            const offers = await fetch(`${providerURL}?api_key=${encodeURIComponent(secret)}`, {headers:{Accept:"application/json"},redirect:"error",signal:AbortSignal.timeout(10000)});
+            if (!offers.ok) throw Error("Availability unavailable");
+            const availability = await offers.json();
+            movie.watch_availability = availability.results || {};
+            if (cache.size >= 500) cache.delete(cache.keys().next().value);
+            cache.set(providerURL, {data:availability,expires:now()+300000});
+          }
+        }));
+        data.results = movies;
+      }
+
+      if (cache.size >= 500) cache.delete(cache.keys().next().value);
       cache.set(cacheKey, { data, expires: now() + 300000 });
       return reply(200, data);
     } catch { return reply(503, { error: "Movie information temporarily unavailable" }); }

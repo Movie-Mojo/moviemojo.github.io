@@ -35,5 +35,19 @@ const { readFileSync } = require('node:fs');
  const search=movieURL({path:'search/movie',params:{query:'x & api_key=evil',page:1}}); assert.equal(search.searchParams.get('query'),'x & api_key=evil'); assert.equal(search.searchParams.has('api_key'),false);
  for(const path of ['watch/providers/movie','discover/movie','search/movie','movie/1']) assert(movieURL({path,params:path==='search/movie'?{query:'test'}:{}}).hostname==='api.themoviedb.org');
  const missing=createHandler({env:()=>undefined,fetch:()=>{throw Error('must not fetch')}}); assert.equal((await missing(request())).status,503);
+ let gates=0,providerCalls=0;
+ const trending=createHandler({env,fetch:async url=>{
+   if(String(url).includes('/rpc/')) { ++gates; return Response.json(true); }
+   if(String(url).includes('/watch/providers')) { ++providerCalls; return Response.json({results:{US:{flatrate:[{provider_id:8}]}}}); }
+   return Response.json({results:[{id:1},{id:2}],total_pages:1});
+ }});
+ const batch=await trending(request({path:'trending/movie/week',params:{page:1}}));
+ assert.equal(batch.status,200);
+ assert.equal((await batch.json()).results[0].watch_availability.US.flatrate[0].provider_id,8);
+ assert.equal(gates,1,'one quota check per trending page');
+ assert.equal(providerCalls,2);
+ await trending(request({path:'trending/movie/week',params:{page:1}}));
+ assert.equal(gates,2,'cached pages still require authorization');
+ assert.equal(providerCalls,2,'availability is cached');
  console.log('PASS: proxy allowlist, bounded inputs, authentication gate, shared-limit responses, cache authorization/expiry, secret-free errors, fixed upstream host.');
 })().catch(e=>{console.error(e);process.exit(1)});
