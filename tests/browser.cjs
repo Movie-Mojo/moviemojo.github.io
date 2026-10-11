@@ -425,7 +425,7 @@ const fixture = {
   );
   await page.locator("[data-tab=discover]").click();
   await page.locator("#results .movie-card").waitFor();
-  for (let i = 0; i < 9; i++) {
+  for (let i = 0; i < 10; i++) {
     // Even an already-open panel must close when a shortcut is selected.
     await page.locator("details.filters").evaluate((panel) => panel.open = true);
     await page.locator(`[data-mood="${i}"]`).click();
@@ -449,10 +449,11 @@ const fixture = {
     if (i === 6) assert.equal(params.get("with_runtime.lte"), "90");
     if (i === 7) assert.equal(params.get("with_genres"), "27");
     if (i === 8) assert.equal(params.get("with_genres"), "28");
+    if (i === 9) assert.equal(params.get("with_genres"), "10749");
   }
-  await page.locator('[data-mood="8"]').click();
+  await page.locator('[data-mood="9"]').click();
   await page.waitForTimeout(200);
-  assert.equal(await page.locator('[data-mood="8"]').getAttribute("aria-pressed"), "false");
+  assert.equal(await page.locator('[data-mood="9"]').getAttribute("aria-pressed"), "false");
   assert.equal(await page.locator("#mood-description").isVisible(), false);
   await page.locator('[data-mood="6"]').click();
   await page.waitForTimeout(200);
