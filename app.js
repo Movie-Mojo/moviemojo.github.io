@@ -424,8 +424,9 @@ const moodShortcuts = [
   { label: "Family night", description: "Family and animated movies rated 6+ · excludes horror · check age ratings before watching", filters: { with_genres: "10751|16", without_genres: "27", "vote_average.gte": "6", "with_runtime.gte": "40" } },
   { label: "Out of this world", description: "Science fiction and fantasy rated 6.5+", filters: { with_genres: "878|14", "vote_average.gte": "6.5", "with_runtime.gte": "40" } },
   { label: "Under 90 minutes", description: "Feature-length movies from 40–90 minutes, rated 6+", filters: { "with_runtime.gte": "40", "with_runtime.lte": "90", "vote_average.gte": "6" } },
-  { label: "Scary movies", description: "Horror movies rated 6+", filters: { with_genres: "27", "vote_average.gte": "6", "with_runtime.gte": "40" } },
-  { label: "Action", description: "Action movies rated 6.5+", filters: { with_genres: "28", "vote_average.gte": "6.5", "with_runtime.gte": "40" } },
+  { label: "Give me chills", description: "Horror movies rated 6+", filters: { with_genres: "27", "vote_average.gte": "6", "with_runtime.gte": "40" } },
+  { label: "Get my heart racing", description: "Action movies rated 6.5+", filters: { with_genres: "28", "vote_average.gte": "6.5", "with_runtime.gte": "40" } },
+  { label: "Sweep me away", description: "Romance movies rated 6.5+", filters: { with_genres: "10749", "vote_average.gte": "6.5", "with_runtime.gte": "40" } },
 ];
 function updateMoodControls() {
   const mood = moodShortcuts.find((m) => m.label === state.filters.mood);
