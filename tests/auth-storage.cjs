@@ -1,0 +1,30 @@
+const {chromium}=require('playwright');
+const assert=require('node:assert/strict');
+(async()=>{
+ const browser=await chromium.launch({executablePath:process.env.CHROME_PATH||'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',headless:true});
+ const context=await browser.newContext();
+ await context.route('**/cdn.jsdelivr.net/**',r=>r.fulfill({body:''}));
+ await context.addInitScript(()=>{window.supabase={createClient:(url,key,options)=>{window.testAuth=options.auth;return {auth:{onAuthStateChange:fn=>setTimeout(()=>fn('INITIAL_SESSION',null),0),signInWithPassword:async()=>({error:null})}};}};});
+ const base=process.env.MOJO_TEST_URL||'http://localhost:8765';
+ const page=await context.newPage();await page.goto(base,{waitUntil:'domcontentloaded'});
+ await page.locator('#keep-signed-in').waitFor();
+ assert.equal(await page.locator('#keep-signed-in').isChecked(),false);
+ assert(await page.evaluate(()=>testAuth.persistSession&&testAuth.autoRefreshToken&&testAuth.detectSessionInUrl));
+ await page.evaluate(()=>testAuth.storage.setItem('qa-session','synthetic-session'));
+ await page.reload({waitUntil:'domcontentloaded'});
+ assert.equal(await page.evaluate(()=>testAuth.storage.getItem('qa-session')),'synthetic-session');
+ const another=await context.newPage();await another.goto(base,{waitUntil:'domcontentloaded'});
+ assert.equal(await another.evaluate(()=>testAuth.storage.getItem('qa-session')),null);
+ await page.locator('#keep-signed-in').check();await page.locator('#email').fill('test@example.invalid');await page.locator('#password').fill('synthetic-password');await page.locator('#auth-form button').click();
+ await page.evaluate(()=>testAuth.storage.setItem('qa-session','persistent-synthetic-session'));
+ const persistent=await context.newPage();await persistent.goto(base,{waitUntil:'domcontentloaded'});
+ assert.equal(await persistent.evaluate(()=>testAuth.storage.getItem('qa-session')),'persistent-synthetic-session');
+ await persistent.evaluate(()=>testAuth.storage.removeItem('qa-session'));
+ assert.equal(await persistent.evaluate(()=>testAuth.storage.getItem('qa-session')),null);
+ // Preserve the SDK's existing storage key when migrating an existing session.
+ await persistent.evaluate(()=>{localStorage.removeItem('mojo-session-mode');sessionStorage.clear();localStorage.setItem(testAuth.storageKey,'synthetic-legacy-session');});
+ await persistent.reload({waitUntil:'domcontentloaded'});
+ assert.equal(await persistent.evaluate(()=>testAuth.storage.getItem(testAuth.storageKey)),'synthetic-legacy-session');
+ assert.equal(await persistent.locator('#keep-signed-in').isChecked(),true);
+ await browser.close();console.log('PASS: tab reload, separate tabs, persistent reopening, removal, legacy migration, automatic refresh configuration');
+})().catch(e=>{console.error(e);process.exit(1);});
