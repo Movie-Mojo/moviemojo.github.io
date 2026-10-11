@@ -375,7 +375,7 @@ const fixture = {
   await page.locator("[data-tab=profile]").click();
   assert.equal(await page.locator("#leave-group").count(), 0);
   await page.locator("#manage-watchlists").click();
-  await page.getByRole("heading", { name: "Your movie circles." }).waitFor();
+  await page.getByRole("heading", { name: "Manage watchlists", exact: true }).waitFor();
   assert.equal(await page.locator("[data-remove-group]").count(), 1);
   assert.equal(await page.locator("[data-remove-group]").getAttribute("data-remove-group"), fixture.groups[1].group_id);
   const canceled = page.waitForEvent("dialog").then(async (dialog) => {
@@ -384,8 +384,8 @@ const fixture = {
   });
   await page.locator("[data-remove-group]").click();
   await canceled;
-  assert.equal(await page.locator(".group-card").count(), 2);
-  await page.locator("[data-tab=profile]").click();
+  assert.equal(await page.locator("#modal-content [data-remove-group]").count(), 1);
+  await page.locator("#close-modal").click();
   await page.locator("#my-watched-history").click();
   await page.getByRole("heading", { name: "Arrival", exact: true }).waitFor();
   await page.locator("[data-history=remove]").click();
@@ -420,20 +420,30 @@ const fixture = {
   );
   await page.locator("[data-tab=discover]").click();
   await page.locator("#results .movie-card").waitFor();
-  await page.locator('[data-mood="0"]').click();
+  for (let i = 0; i < 6; i++) {
+    // Even an already-open panel must close when a shortcut is selected.
+    await page.locator("details.filters").evaluate((panel) => panel.open = true);
+    await page.locator(`[data-mood="${i}"]`).click();
+    await page.waitForTimeout(200);
+    assert.equal(await page.locator("details.filters").evaluate((panel) => panel.open), false);
+    assert.equal(await page.locator(`[data-mood="${i}"]`).getAttribute("aria-pressed"), "true");
+    assert(await page.locator("#mood-description").isVisible());
+    const params = new URL(urls.filter((u) => u.includes("/discover/movie")).at(-1)).searchParams;
+    assert.equal(params.get("with_runtime.gte"), "40");
+    assert.equal(params.get("vote_count.gte"), i === 5 ? "500" : "100");
+    if (i === 0) { assert.equal(params.get("with_genres"), "35"); assert.equal(params.get("without_genres"), "27"); }
+    if (i === 1) assert.equal(params.get("with_genres"), "53|9648");
+    if (i === 2) assert.equal(params.get("with_genres"), "10751|16");
+    if (i === 3) assert.equal(params.get("with_genres"), "878|14");
+    if (i === 4) assert.equal(params.get("with_runtime.lte"), "90");
+    if (i === 5) assert.equal(params.get("vote_average.gte"), "7.5");
+  }
+  await page.locator('[data-mood="5"]').click();
   await page.waitForTimeout(200);
-  assert(
-    new URL(
-      urls.filter((u) => u.includes("/discover/movie")).at(-1),
-    ).searchParams.get("with_genres") === "35",
-  );
+  assert.equal(await page.locator('[data-mood="5"]').getAttribute("aria-pressed"), "false");
+  assert.equal(await page.locator("#mood-description").isVisible(), false);
   await page.locator('[data-mood="4"]').click();
   await page.waitForTimeout(200);
-  assert(
-    new URL(
-      urls.filter((u) => u.includes("/discover/movie")).at(-1),
-    ).searchParams.get("with_runtime.lte") === "90",
-  );
   await page.locator("details.filters > summary").click();
   await page.locator("#discovery-services summary").click();
   await page.locator("#use-my-services").check();
@@ -467,6 +477,12 @@ const fixture = {
     "2020-12-31",
   );
   assert(!lastDiscover().searchParams.has("useMyServices"));
+  await page.locator('[data-mood="1"]').click();
+  await page.waitForTimeout(200);
+  assert.equal(lastDiscover().searchParams.get("with_watch_providers"), "8|9|1796");
+  assert.equal(lastDiscover().searchParams.get("with_watch_monetization_types"), "flatrate|free|ads");
+  assert.equal(await page.locator("details.filters").evaluate((panel) => panel.open), false);
+  await page.locator("details.filters > summary").click();
   await page.locator("#use-my-services").uncheck();
   await page.locator('[name="discovery-provider"][value="8"]').check();
   await page.locator('[name="discovery-provider"][value="9"]').check();
@@ -533,6 +549,7 @@ const fixture = {
   await page.locator("#close-modal").click();
   await page.locator("[data-tab=groups]").click();
   await page.getByRole("heading", { name: "Your movie circles." }).waitFor();
+  assert.equal(await page.locator("[data-remove-group]").count(), 0);
   assert.equal(await page.locator("[data-invite]").count(), 1);
   await page.locator("[data-members]").click();
   await page.getByRole("heading", { name: "Taylor", exact: true }).waitFor();

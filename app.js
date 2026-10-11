@@ -417,24 +417,44 @@ function select(name, label, options) {
   return `<div><label for="${name}">${label}</label><select id="${name}" name="${name}">${options.map(([v, l]) => `<option value="${v}" ${String(state.filters[name] || "") === String(v) ? "selected" : ""}>${l}</option>`).join("")}</select></div>`;
 }
 const moodShortcuts = [
-  { label: "Make me laugh", filters: { with_genres: "35" } },
-  { label: "Keep me guessing", filters: { with_genres: "53|9648" } },
-  { label: "Family night", filters: { with_genres: "10751" } },
-  { label: "Out of this world", filters: { with_genres: "878|14" } },
-  { label: "Under 90 minutes", filters: { "with_runtime.lte": "90" } },
-  {
-    label: "Highly rated",
-    filters: { "vote_average.gte": "8", sort_by: "vote_average.desc" },
-  },
+  { label: "Make me laugh", description: "Comedies rated 6+ · excludes horror", filters: { with_genres: "35", without_genres: "27", "vote_average.gte": "6", "with_runtime.gte": "40" } },
+  { label: "Keep me guessing", description: "Mysteries and thrillers rated 6.5+", filters: { with_genres: "53|9648", "vote_average.gte": "6.5", "with_runtime.gte": "40" } },
+  { label: "Family night", description: "Family and animated movies rated 6+ · excludes horror · check age ratings before watching", filters: { with_genres: "10751|16", without_genres: "27", "vote_average.gte": "6", "with_runtime.gte": "40" } },
+  { label: "Out of this world", description: "Science fiction and fantasy rated 6.5+", filters: { with_genres: "878|14", "vote_average.gte": "6.5", "with_runtime.gte": "40" } },
+  { label: "Under 90 minutes", description: "Feature-length movies from 40–90 minutes, rated 6+", filters: { "with_runtime.gte": "40", "with_runtime.lte": "90", "vote_average.gte": "6" } },
+  { label: "Highly rated", description: "Rated 7.5+ with at least 500 votes · highest rated first", filters: { "vote_average.gte": "7.5", "vote_count.gte": "500", "with_runtime.gte": "40", sort_by: "vote_average.desc" } },
 ];
+function updateMoodControls() {
+  const mood = moodShortcuts.find((m) => m.label === state.filters.mood);
+  app.querySelectorAll("[data-mood]").forEach((button) => {
+    const active = mood?.label === moodShortcuts[Number(button.dataset.mood)].label;
+    button.classList.toggle("active", active);
+    button.setAttribute("aria-pressed", String(active));
+  });
+  $("#mood-description").textContent = mood ? mood.description + " · Your services and availability choice still apply. Tap again to clear." : "";
+  $("#mood-description").hidden = !mood;
+  const genre = $("#with_genres");
+  genre.querySelector('[data-mood-option]')?.remove();
+  if (state.filters.with_genres?.includes("|")) {
+    const option = new Option(mood?.label || "Mood selection", state.filters.with_genres);
+    option.dataset.moodOption = "true";
+    genre.add(option);
+  }
+  for (const select of $("#filter-form").querySelectorAll("select"))
+    select.value = state.filters[select.name] || (select.name === "watch_region" ? state.streamingRegion : select.name === "sort_by" ? "popularity.desc" : "");
+  $("#year-from").value = state.filters.yearFrom || "";
+  $("#year-to").value = state.filters.yearTo || "";
+}
 function discover() {
-  app.innerHTML = `<p class="eyebrow">A little inspiration</p><h1>Find your next favorite.</h1><p class="subtitle">Follow a mood. Explore a genre. See what catches your eye.</p><div class="mood-shortcuts" aria-label="Movie mood shortcuts">${moodShortcuts.map((m, i) => `<button class="mood-chip ${state.filters.mood === m.label ? "active" : ""}" data-mood="${i}">${m.label}</button>`).join("")}</div><form id="search-form" class="search-row"><input name="query" id="query" type="search" placeholder="Search movie titles…" aria-label="Movie title" value="${esc(state.query)}"><button class="button" type="submit">Search</button></form><details class="filters"><summary>Browse by filters</summary><form id="filter-form"><p class="muted">Filters browse the movie catalog. Title search runs separately.</p><div class="filter-grid">${select("with_genres", "Genre", [["", "All genres"], ...(state.filters.mood && state.filters.with_genres?.includes("|") ? [[state.filters.with_genres, "Mood selection"]] : []), ...genres])}<fieldset class="release-years"><legend>Release year</legend><div class="year-range"><div><label for="year-from">From</label><input id="year-from" name="yearFrom" type="number" min="1874" max="2100" placeholder="Any" inputmode="numeric" value="${esc(state.filters.yearFrom || "")}"></div><span aria-hidden="true">–</span><div><label for="year-to">To</label><input id="year-to" name="yearTo" type="number" min="1874" max="2100" placeholder="Any" inputmode="numeric" value="${esc(state.filters.yearTo || "")}"></div></div></fieldset>${select(
+  app.innerHTML = `<p class="eyebrow">A little inspiration</p><h1>Find your next favorite.</h1><p class="subtitle">Follow a mood. Explore a genre. See what catches your eye.</p><div class="mood-shortcuts" aria-label="Movie mood shortcuts">${moodShortcuts.map((m, i) => `<button class="mood-chip ${state.filters.mood === m.label ? "active" : ""}" aria-pressed="${state.filters.mood === m.label}" type="button" data-mood="${i}">${m.label}</button>`).join("")}</div><p id="mood-description" class="muted" hidden></p><form id="search-form" class="search-row"><input name="query" id="query" type="search" placeholder="Search movie titles…" aria-label="Movie title" value="${esc(state.query)}"><button class="button" type="submit">Search</button></form><details class="filters"><summary>Browse by filters</summary><form id="filter-form"><p class="muted">Filters browse the movie catalog. Title search runs separately.</p><div class="filter-grid">${select("with_genres", "Genre", [["", "All genres"], ...genres])}<fieldset class="release-years"><legend>Release year</legend><div class="year-range"><div><label for="year-from">From</label><input id="year-from" name="yearFrom" type="number" min="1874" max="2100" placeholder="Any" inputmode="numeric" value="${esc(state.filters.yearFrom || "")}"></div><span aria-hidden="true">–</span><div><label for="year-to">To</label><input id="year-to" name="yearTo" type="number" min="1874" max="2100" placeholder="Any" inputmode="numeric" value="${esc(state.filters.yearTo || "")}"></div></div></fieldset>${select(
     "vote_average.gte",
     "Minimum audience score",
     [
       ["", "Any score"],
       [6, "6+ / 10"],
+      [6.5, "6.5+ / 10"],
       [7, "7+ / 10"],
+      [7.5, "7.5+ / 10"],
       [8, "8+ / 10"],
     ],
   )}${select("with_runtime.lte", "Runtime", [
@@ -469,19 +489,23 @@ function discover() {
     (button) =>
       (button.onclick = () => {
         const mood = moodShortcuts[Number(button.dataset.mood)];
+        const clear = state.filters.mood === mood.label;
         state.filters = {
           watch_region: state.filters.watch_region || state.streamingRegion,
           providerIds: state.filters.providerIds || [],
           useMyServices: !!state.filters.useMyServices,
           hideWatched: !!state.filters.hideWatched,
-          ...mood.filters,
-          mood: mood.label,
+          ...(clear ? {} : mood.filters),
+          mood: clear ? "" : mood.label,
         };
         state.mode = "discover";
         state.query = "";
         state.page = 1;
         state.results = [];
-        discover();
+        $("#query").value = "";
+        updateMoodControls();
+        $("details.filters").open = false;
+        fetchDiscover();
       }),
   );
   $("#search-form").onsubmit = (e) => {
@@ -530,6 +554,7 @@ function discover() {
     state.query = "";
     $("#query").value = "";
     state.page = 1;
+    updateMoodControls();
     fetchDiscover();
   };
   $("#reset-filters").onclick = () => {
@@ -552,6 +577,7 @@ function discover() {
     state.filters.providerIds || [],
     state.filters.useMyServices,
   );
+  updateMoodControls();
   if (state.results.length) renderResults();
   else fetchDiscover();
 }
@@ -756,7 +782,7 @@ async function fetchDiscover(append = false) {
         : {
             ...f,
             sort_by: f.sort_by || "popularity.desc",
-            "vote_count.gte": 100,
+            "vote_count.gte": f["vote_count.gte"] || 100,
             "primary_release_date.gte": f.yearFrom ? `${f.yearFrom}-01-01` : "",
             "primary_release_date.lte": f.yearTo
               ? `${f.yearTo}-12-31`
@@ -814,7 +840,9 @@ function renderResults() {
     list.map((m, i) => card(m, i)).join("") ||
     empty(
       "No matches this time.",
-      "Try a broader genre, date range, or lower audience score.",
+      state.filters.mood
+        ? `No ${state.filters.mood.toLowerCase()} matches with your current services and availability. Try All, choose more services, or tap the shortcut again to clear it.`
+        : "Try a broader genre, date range, or lower audience score.",
     );
   $("#load-more").hidden = state.page >= state.total;
   bindCards(list);
@@ -1148,27 +1176,7 @@ async function groupPeople(id) {
     );
 }
 function groups() {
-  app.innerHTML = `<p class="eyebrow">Better together</p><h1>Your movie circles.</h1><p class="subtitle">A list for your friends. A list for yourself. A place for every movie night.</p>${state.groups.map((g) => `<div class="group-card"><button class="group-open" data-group="${g.group_id}"><h3>${esc(g.group_name)}</h3><p class="muted">${g.member_count === 1 ? "Your own watchlist" : g.member_count + " people"} · Open watchlist →</p></button>${g.group_id === state.personalGroup ? '<p class="muted">Only you · Personal list</p>' : `<div class="group-buttons"><button class="button secondary" data-members="${g.group_id}">Members</button><button class="button secondary" data-invite="${g.group_id}">Invite</button><button class="button danger" data-remove-group="${g.group_id}">${g.created_by === state.user.id ? "Delete watchlist" : "Leave group"}</button></div>`}</div>`).join("") || empty("Start your first circle.", "Create a list below, then invite your friends whenever you like.")}<div class="form-panel"><h3>Create a watchlist</h3><p class="muted">Keep it personal or share it with friends.</p><form id="create-group"><input id="group-name" placeholder="Friday night crew" maxlength="100" aria-label="Watchlist name" required><button class="button">Create →</button></form></div><div class="form-panel"><h3>Have an invite?</h3><p class="muted">Paste a group code to join your friends.</p><form id="join-group"><input id="group-code" placeholder="Group invite code" aria-label="Group invite code" required><button class="button secondary">Join group</button></form></div>`;
-  app.querySelectorAll("[data-remove-group]").forEach((button) => {
-    button.onclick = () => run(button, async () => {
-      const group = state.groups.find((g) => g.group_id === button.dataset.removeGroup);
-      if (!group || group.group_id === state.personalGroup) return;
-      const own = group.created_by === state.user.id;
-      if (!confirm(own
-        ? `Delete “${group.group_name}” and its group ratings permanently?`
-        : `Leave “${group.group_name}”?`)) return;
-      if (own) checked(await db.rpc("mojo_delete_group", { target_group: group.group_id }));
-      else {
-        const rows = checked(await db.from("group_members").delete()
-          .eq("group_id", group.group_id).eq("user_id", state.user.id).select("id"));
-        if (!rows.length) throw new Error("Could not leave the group.");
-      }
-      if (state.group?.group_id === group.group_id) state.group = null;
-      await loadGroups();
-      render();
-      toast(own ? "Watchlist deleted." : "You left the group.");
-    });
-  });
+  app.innerHTML = `<p class="eyebrow">Better together</p><h1>Your movie circles.</h1><p class="subtitle">A list for your friends. A list for yourself. A place for every movie night.</p>${state.groups.map((g) => `<div class="group-card"><button class="group-open" data-group="${g.group_id}"><h3>${esc(g.group_name)}</h3><p class="muted">${g.member_count === 1 ? "Your own watchlist" : g.member_count + " people"} · Open watchlist →</p></button>${g.group_id === state.personalGroup ? '<p class="muted">Only you · Personal list</p>' : `<div class="group-buttons"><button class="button secondary" data-members="${g.group_id}">Members</button><button class="button secondary" data-invite="${g.group_id}">Invite</button></div>`}</div>`).join("") || empty("Start your first circle.", "Create a list below, then invite your friends whenever you like.")}<div class="form-panel"><h3>Create a watchlist</h3><p class="muted">Keep it personal or share it with friends.</p><form id="create-group"><input id="group-name" placeholder="Friday night crew" maxlength="100" aria-label="Watchlist name" required><button class="button">Create →</button></form></div><div class="form-panel"><h3>Have an invite?</h3><p class="muted">Paste a group code to join your friends.</p><form id="join-group"><input id="group-code" placeholder="Group invite code" aria-label="Group invite code" required><button class="button secondary">Join group</button></form></div>`;
   app
     .querySelectorAll("[data-members]")
     .forEach(
@@ -1253,6 +1261,30 @@ function groups() {
     });
   };
 }
+function manageWatchlists() {
+  openModal(`<h2>Manage watchlists</h2><p class="muted">Delete lists you own or leave groups you joined.</p>${state.groups.map((g) => `<div class="form-panel"><h3>${esc(g.group_name)}</h3><p class="muted">${g.group_id === state.personalGroup ? "Your permanent personal list · Only you" : `${g.member_count} ${g.member_count === 1 ? "member" : "members"} · ${g.created_by === state.user.id ? "You own this list" : "Shared group"}`}</p>${g.group_id === state.personalGroup ? "" : `<button class="button danger full" data-remove-group="${g.group_id}">${g.created_by === state.user.id ? "Delete watchlist" : "Leave group"}</button>`}</div>`).join("")}`);
+  $("#modal-content").querySelectorAll("[data-remove-group]").forEach((button) => {
+    button.onclick = () => run(button, async () => {
+      const group = state.groups.find((g) => g.group_id === button.dataset.removeGroup);
+      if (!group || group.group_id === state.personalGroup) return;
+      const own = group.created_by === state.user.id;
+      if (!confirm(own
+        ? `Delete “${group.group_name}” and its group ratings permanently?`
+        : `Leave “${group.group_name}”?`)) return;
+      if (own) checked(await db.rpc("mojo_delete_group", { target_group: group.group_id }));
+      else {
+        const rows = checked(await db.from("group_members").delete()
+          .eq("group_id", group.group_id).eq("user_id", state.user.id).select("id"));
+        if (!rows.length) throw new Error("Could not leave the group.");
+      }
+      if (state.group?.group_id === group.group_id) state.group = null;
+      await loadGroups();
+      render();
+      manageWatchlists();
+      toast(own ? "Watchlist deleted." : "You left the group.");
+    });
+  });
+}
 function profile() {
   app.innerHTML = `<div class="profile"><p class="eyebrow">Your corner of the cinema</p><h1>Hey, movie lover.</h1><p class="subtitle">${esc(state.user.email)}</p><div class="form-panel"><h3>Your watched movies</h3><p class="muted">See your history and remove movies you missed.</p><button id="my-watched-history" class="button secondary">Manage watched history</button></div><div class="form-panel"><h3>Your name</h3><p class="muted">Shown to your groups when you suggest a movie.</p><form id="display-name-form"><input id="display-name" aria-label="Your display name" maxlength="60" value="${esc(state.displayName)}" placeholder="What should your friends call you?" required><button class="button" type="submit">Save name</button></form></div><div class="form-panel"><h3>Your streaming services</h3><p class="muted">Save the services you have, then choose “My streaming services” in Discover.</p><form id="streaming-profile" class="streaming-profile"><div><label for="profile-region">Country</label><select id="profile-region"><option value="US">United States</option><option value="GB">United Kingdom</option><option value="CA">Canada</option><option value="AU">Australia</option></select></div><div id="profile-services"></div><button class="button" type="submit">Save streaming services</button></form></div><div class="form-panel"><h3>Movie Mojo, on your home screen</h3><p class="muted">On iPhone: open in Safari, tap Share, then Add to Home Screen. On Android: use your browser's Install app option.</p></div><div class="form-panel"><h3>Your watchlists</h3><p class="muted">Manage all your lists and movie groups in one place.</p><button id="manage-watchlists" class="button secondary">Manage watchlists →</button></div><button class="button secondary" id="refresh-data">Refresh watchlists</button><button class="button secondary" id="logout">Sign out</button><p class="muted">Movie information provided by TMDB. Streaming availability provided by JustWatch via TMDB. This product uses the TMDB API but is not endorsed or certified by TMDB.</p></div>`;
   $("#my-watched-history").onclick = (e) =>
@@ -1313,7 +1345,7 @@ function profile() {
       render();
       toast("Watchlists refreshed.");
     });
-  $("#manage-watchlists").onclick = () => go("groups");
+  $("#manage-watchlists").onclick = manageWatchlists;
 }
 async function logout() {
   await run($("#logout"), async () => {
