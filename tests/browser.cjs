@@ -162,6 +162,11 @@ const fixture = {
               display_priority: 9,
             },
             {
+              provider_id: 10002,
+              provider_name: "Obscure Channel Amazon Channel",
+              display_priority: 10,
+            },
+            {
               provider_id: 9,
               provider_name: "Amazon Prime Video",
               display_priority: 2,
@@ -216,7 +221,11 @@ const fixture = {
   await page.locator("[data-tab=profile]").click();
   await page.locator("#profile-services summary").click();
   assert.equal(
-    await page.locator("#profile-services [name=profile-provider]").count(),
+    await page
+      .locator(
+        "#profile-services .service-option:visible [name=profile-provider]",
+      )
+      .count(),
     2,
   );
   await page.locator('[name="profile-provider"][value="8"]').check();
@@ -288,6 +297,24 @@ const fixture = {
     path: "/tmp/mojo-streaming-discover.png",
     fullPage: true,
   });
+  await page.locator("#discovery-services .provider-search").fill("obscure");
+  await page.locator('[name="discovery-provider"][value="10001"]').check();
+  await page.locator("#discovery-services .provider-search").fill("");
+  assert(
+    await page.locator('[data-provider-name="obscure channel"]').isVisible(),
+  );
+  await page.locator("#filter-form button[type=submit]").click();
+  await page.waitForTimeout(200);
+  assert(
+    lastDiscover().searchParams.get("with_watch_providers").includes("10001"),
+  );
+  await page.locator('[name="discovery-provider"][value="10001"]').uncheck();
+  await page.locator('[name="discovery-provider"][value="8"]').uncheck();
+  await page.locator('[name="discovery-provider"][value="9"]').uncheck();
+  await page.locator("#filter-form button[type=submit]").click();
+  await page.waitForTimeout(200);
+  assert(!lastDiscover().searchParams.has("with_watch_providers"));
+  assert(!lastDiscover().searchParams.has("with_watch_monetization_types"));
   await page.locator("#query").fill("Inception");
   await page.locator("#search-form").evaluate((f) => f.requestSubmit());
   await page.waitForTimeout(200);
