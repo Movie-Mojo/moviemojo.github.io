@@ -79,6 +79,10 @@ const fixture = {
       window.testData = fixture;
       window.supabase = {
         createClient: () => ({
+          functions: { invoke: async (name, options) => {
+            const res = await fetch("https://fhynhdekctvstiolykgo.supabase.co/functions/v1/" + name, {method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(options.body)});
+            return {data:await res.json(),error:res.ok?null:{context:res}};
+          } },
           auth: {
             onAuthStateChange: (fn) =>
               setTimeout(
@@ -241,8 +245,10 @@ const fixture = {
   );
   await page.route("**/cdn.jsdelivr.net/**", (r) => r.fulfill({ body: "" }));
   const urls = [];
-  await page.route("**/api.themoviedb.org/**", (r) => {
-    const url = new URL(r.request().url());
+  await page.route("**/functions/v1/movie-data", (r) => {
+    const body = r.request().postDataJSON();
+    const url = new URL("https://api.themoviedb.org/3/" + body.path);
+    for (const [k,v] of Object.entries(body.params)) url.searchParams.set(k,v);
     urls.push(url.toString());
     let data = url.pathname.includes("watch/providers/movie")
       ? {

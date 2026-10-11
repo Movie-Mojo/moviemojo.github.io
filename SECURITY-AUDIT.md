@@ -75,3 +75,14 @@ Share invitations now use separate random tokens with exactly seven days of vali
 Live rollback tests passed privacy, direct-write length limits, creator/group access, exact expiry, expired-link rejection, personal-list protection, direct invitation expiry, renewed tokens, and accepted-friend watched histories. Existing database access and suggestion suites passed with token-based invitations. Mobile browser tests passed including copied tokens and verified-signup continuation.
 
 Per the user's request, browser/dependency hardening and excess database privileges were not changed. Leaked-password protection did not persist after saving and the dashboard says it requires Pro; PostgreSQL upgrade to stable 17.11.0.003 is prepared but requires an appropriate maintenance window (up to one hour offline, no downgrade). These platform items are pending, not fixed.
+
+## Credential protection follow-up — October 11, 2026
+
+- PostgreSQL upgrade completed: project `ACTIVE_HEALTHY`, version `17.11.0.003`. The outdated-version advisor warning cleared.
+- GitHub Secret Protection and push protection enabled. Pattern scan of 160 local commits found only the intended Supabase anon JWT, with no detected privileged Supabase key, GitHub token, Resend key, private key, AWS key or database password URL. This scan is not a guarantee against all secret formats.
+- TMDB credentials removed from current public frontend configuration. `movie-data` Edge Function reads `TMDB_API_KEY` from Supabase Secrets; there is no browser fallback.
+- JWT verification remains enabled. A database RPC verifies approved email-confirmed accounts and atomically enforces 120 requests/account/minute plus 1,200 requests/project/minute. Private counters have no browser grants. Request paths and filters are allowlisted, payloads bounded at 4KB, upstream host fixed, redirects disabled, and upstream errors sanitized.
+- Five-minute cache is bounded to 100 public movie responses per function instance. Authorization and shared rate limits run before cache reads. Instance restarts lose cache; limits remain in PostgreSQL. Limits reduce upstream abuse but do not eliminate Edge Function invocation costs or automated account abuse.
+- Unit tests, mobile browser regression tests, malicious HTML browser tests, database rollback tests and live missing/anonymous-token denial tests pass. The signed-out live test now expects denied movie access.
+- Required final step: replace the previously exposed TMDB key in Supabase Secrets and revoke the old key at TMDB. Git history and old browser caches retain old copies; current-file removal cannot revoke them.
+- Leaked-password protection still requires a paid Supabase plan. Existing privilege/CSP hardening remains outside this change.

@@ -19,7 +19,7 @@ A mobile-first movie-night app for private friend groups, hosted on GitHub Pages
 
 ## Hosting
 
-Serve this directory on GitHub Pages; no build step is required. `config.js` contains the Supabase public anon key and existing TMDB API key. Never put a Supabase service-role/secret key in browser code. Supabase JS is pinned in `index.html`.
+Serve this directory on GitHub Pages; no build step is required. `config.js` contains only the Supabase public URL and anon key. Movie requests go through the authenticated `movie-data` Edge Function; `TMDB_API_KEY` belongs in Supabase Edge Function secrets. Never put a Supabase service-role/secret key in browser code. Supabase JS is pinned in `index.html`.
 
 For local preview: `python3 -m http.server 8765`.
 
@@ -39,7 +39,7 @@ Browser tests use Playwright and a local server. Set `NODE_PATH` to your Playwri
 
 - `node --check app.js`
 - `node tests/browser.cjs`: fixture-based UI tests, mobile overflow, watched separation, picker, filters, search, details, invites, and desktop layout.
-- `node tests/live-api.cjs`: live signed-out startup and TMDB API smoke tests. Does not sign in or modify user data.
+- `node tests/live-api.cjs`: live signed-out startup and proxy anonymous-access smoke tests. Does not sign in or modify user data.
 - `tests/database-suggestions.sql`: transactional contributor privacy and note permissions checks.
 - `tests/database-access.sql`: transactional database access tests; generated fixtures are rolled back.
 
@@ -56,3 +56,9 @@ Every account receives a permanent personal list, protected against sharing, lea
 Sign-in offers Keep me signed in: localStorage when selected, sessionStorage otherwise, with Supabase automatic refresh and URL recovery enabled. Existing local sessions retain their storage key. Browser tab restoration can retain sessionStorage; use Sign out on shared devices. Sessions are separate per browser and origin. Passwords are never stored by the application.
 
 Movie viewing options separate subscription, free, ad-supported, rental and purchase offers. Clickable providers lead to the exact movie’s TMDB watch page. TMDB does not supply direct provider links or prices; these require an additional licensed offer feed.
+
+Movie API security: `supabase/functions/movie-data` accepts only approved, email-verified accounts and allowlisted TMDB movie requests. Apply `database-movie-proxy.sql`, set `TMDB_API_KEY` in Supabase Edge Function Secrets, then deploy with JWT verification enabled. Counters limit each account to 120 requests per minute and the project to 1,200 per minute across all function instances. Successful public movie responses have a bounded five-minute cache per running instance. Failed requests never fall back to a browser key.
+
+After deploying, replace the previously public TMDB key in Supabase Secrets and revoke it at TMDB. Git history and old service-worker caches may retain the old key; deleting code cannot revoke it. Never place private credentials in frontend files or generated Pages assets. `.gitignore` excludes environment files and private-key files.
+
+Run `node tests/movie-proxy.cjs` for proxy authorization, validation, rate-limit, cache and upstream-failure tests.
