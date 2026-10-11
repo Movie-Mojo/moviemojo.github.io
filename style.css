@@ -1052,9 +1052,8 @@ textarea:focus {
 
 /* Brief motion cues; layouts and scrolling remain stable. */
 @media (prefers-reduced-motion: no-preference) {
-  dialog[open] { animation: modal-arrive 180ms cubic-bezier(.2,.7,.2,1); }
-  dialog[open]::backdrop { animation: soft-appear 180ms ease-out; }
-  #modal-content { animation: soft-appear 160ms ease-out; }
+  dialog[open] { animation: modal-arrive 280ms cubic-bezier(.16,1,.3,1); }
+  dialog[open]::backdrop { animation: soft-appear 240ms ease-out; }
   .grid > .movie-card, .grid > .movie-card-wrap { animation: soft-appear 220ms ease-out; }
   #toast { animation: toast-arrive 180ms ease-out; }
   .pill, .availability-switch button, nav button, .movie-link, .watch-offer, .close {
@@ -1068,7 +1067,7 @@ textarea:focus {
   .movie-card:hover .poster-wrap { box-shadow: 0 10px 26px #0005; }
 }
 @keyframes soft-appear { from { opacity: 0; } to { opacity: 1; } }
-@keyframes modal-arrive { from { opacity: 0; transform: translateY(6px) scale(.99); } to { opacity: 1; transform: none; } }
+@keyframes modal-arrive { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
 @keyframes toast-arrive { from { opacity: 0; transform: translate(-50%, 5px); } to { opacity: 1; transform: translateX(-50%); } }
 
 .availability-switch::before { content: ""; position: absolute; top: 5px; bottom: 5px; left: 5px; width: calc((100% - 18px) / 3); border-radius: 10px; background: var(--accent); pointer-events: none; }
@@ -1079,3 +1078,7 @@ textarea:focus {
 }
 /* The same compact corner control is visible at every screen size. */
 .movie-card-wrap .card-menu-button { display: grid; }
+
+.movie-detail-dialog { height: min(760px, 88dvh); }
+.movie-detail-dialog #modal-content > .loading { min-height: min(650px, 72dvh); display: grid; place-items: center; }
+.detail-poster { aspect-ratio: 2 / 3; object-fit: cover; }
