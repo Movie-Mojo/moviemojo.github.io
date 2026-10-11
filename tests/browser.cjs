@@ -463,7 +463,9 @@ const fixture = {
   await page.locator("[data-tab=discover]").click();
   await page.locator("#results .movie-card").waitFor();
   assert.equal(await page.locator('[data-mood="0"]').getAttribute("aria-pressed"), "true");
-  assert(urls.some(u=>u.includes("/trending/movie/week")));
+  await page.waitForFunction(() => state.page === 2);
+  assert(urls.some(u=>u.includes("/trending/movie/week") && u.includes("page=2")), "sparse trending results must automatically fetch another page");
+  assert.equal(await page.locator("#results .movie-card").count(), 1, "overlapping pages must not duplicate cards");
   for (let i = 0; i < 10; i++) {
     // Even an already-open panel must close when a shortcut is selected.
     await page.locator("details.filters").evaluate((panel) => panel.open = true);
