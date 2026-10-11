@@ -6,6 +6,8 @@ const app = $("#app"),
 const state = {
   user: null,
   approved: false,
+  streamingServices: [],
+  streamingRegion: "US",
   groups: [],
   group: null,
   movies: [],
@@ -282,7 +284,7 @@ function select(name, label, options) {
   return `<div><label for="${name}">${label}</label><select id="${name}" name="${name}">${options.map(([v, l]) => `<option value="${v}" ${String(state.filters[name] || "") === String(v) ? "selected" : ""}>${l}</option>`).join("")}</select></div>`;
 }
 function discover() {
-  app.innerHTML = `<p class="eyebrow">A little inspiration</p><h1>Find your next favorite.</h1><p class="subtitle">Follow a mood. Explore a genre. See what catches your eye.</p><form id="search-form" class="search-row"><input name="query" id="query" type="search" placeholder="Search movie titles…" aria-label="Movie title" value="${esc(state.query)}"><button class="button" type="submit">Search</button></form><details class="filters" ${state.mode === "discover" ? "open" : ""}><summary>Browse by filters</summary><form id="filter-form"><p class="muted">Filters browse the movie catalog. Title search runs separately.</p><div class="filter-grid">${select("with_genres", "Genre", [["", "All genres"], ...genres])}<div><label for="year-from">Released from</label><input id="year-from" name="primary_release_date.gte" type="date" value="${esc(state.filters["primary_release_date.gte"] || "")}"></div><div><label for="year-to">Released through</label><input id="year-to" name="primary_release_date.lte" type="date" value="${esc(state.filters["primary_release_date.lte"] || "")}"></div>${select(
+  app.innerHTML = `<p class="eyebrow">A little inspiration</p><h1>Find your next favorite.</h1><p class="subtitle">Follow a mood. Explore a genre. See what catches your eye.</p><form id="search-form" class="search-row"><input name="query" id="query" type="search" placeholder="Search movie titles…" aria-label="Movie title" value="${esc(state.query)}"><button class="button" type="submit">Search</button></form><details class="filters" ${state.mode === "discover" ? "open" : ""}><summary>Browse by filters</summary><form id="filter-form"><p class="muted">Filters browse the movie catalog. Title search runs separately.</p><div class="filter-grid">${select("with_genres", "Genre", [["", "All genres"], ...genres])}<fieldset class="release-years"><legend>Release year</legend><div class="year-range"><div><label for="year-from">From</label><input id="year-from" name="yearFrom" type="number" min="1874" max="2100" placeholder="1990" inputmode="numeric" value="${esc(state.filters.yearFrom || "")}"></div><span aria-hidden="true">–</span><div><label for="year-to">To</label><input id="year-to" name="yearTo" type="number" min="1874" max="2100" placeholder="Any year" inputmode="numeric" value="${esc(state.filters.yearTo || "")}"></div></div></fieldset>${select(
     "vote_average.gte",
     "Minimum audience score",
     [
@@ -305,7 +307,7 @@ function discover() {
     ["GB", "United Kingdom"],
     ["CA", "Canada"],
     ["AU", "Australia"],
-  ])}<div><label for="with_watch_providers">Streaming service</label><select name="with_watch_providers" id="with_watch_providers"><option value="">Any service</option></select></div></div><label class="checkbox"><input type="checkbox" id="hide-watched" ${state.filters.hideWatched ? "checked" : ""}> Hide movies watched by this group</label><div class="filter-actions"><button class="button" type="submit">Find movies →</button><button class="button secondary" id="reset-filters" type="button">Reset</button></div></form></details><div class="section-row"><h2 id="results-title">${state.mode === "search" ? "Search results" : "Your next obsession"}</h2><span class="count">${state.group ? esc(state.group.group_name) : "Choose a group to save movies"}</span></div><div id="results" class="grid"></div><button class="button secondary full" id="load-more" hidden>Load more movies</button>`;
+  ])}<div class="streaming-filter"><label>Streaming services</label><div id="discovery-services"></div></div></div><label class="checkbox"><input type="checkbox" id="hide-watched" ${state.filters.hideWatched ? "checked" : ""}> Hide movies watched by this group</label><div class="filter-actions"><button class="button" type="submit">Find movies →</button><button class="button secondary" id="reset-filters" type="button">Reset</button></div></form></details><div class="section-row"><h2 id="results-title">${state.mode === "search" ? "Search results" : "Your next obsession"}</h2><span class="count">${state.group ? esc(state.group.group_name) : "Choose a group to save movies"}</span></div><div id="results" class="grid"></div><button class="button secondary full" id="load-more" hidden>Load more movies</button>`;
   $("#search-form").onsubmit = (e) => {
     e.preventDefault();
     state.query = $("#query").value.trim();
@@ -319,16 +321,35 @@ function discover() {
   };
   $("#filter-form").onsubmit = (e) => {
     e.preventDefault();
-    const data = Object.fromEntries(new FormData(e.target));
-    if (
-      data["primary_release_date.gte"] &&
-      data["primary_release_date.lte"] &&
-      data["primary_release_date.gte"] > data["primary_release_date.lte"]
-    ) {
-      toast("The start date must come before the end date.");
+    if (!$("#discovery-services .service-picker")) {
+      toast("Wait for streaming services to load before applying filters.");
       return;
     }
-    state.filters = { ...data, hideWatched: $("#hide-watched").checked };
+    const data = Object.fromEntries(new FormData(e.target));
+    if (
+      data.yearFrom &&
+      data.yearTo &&
+      Number(data.yearFrom) > Number(data.yearTo)
+    ) {
+      toast("The first release year must be no later than the last.");
+      return;
+    }
+    const providerIds = new FormData(e.target)
+      .getAll("discovery-provider")
+      .map(Number);
+    const useMyServices = !!$("#use-my-services")?.checked;
+    if (useMyServices && !state.streamingServices.length) {
+      toast("Add your streaming services in Profile first.");
+      return;
+    }
+    delete data["discovery-provider"];
+    delete data["provider-search"];
+    state.filters = {
+      ...data,
+      providerIds,
+      useMyServices,
+      hideWatched: $("#hide-watched").checked,
+    };
     state.mode = "discover";
     state.query = "";
     $("#query").value = "";
@@ -345,32 +366,80 @@ function discover() {
   };
   $("#load-more").onclick = (e) =>
     run(e.currentTarget, () => fetchDiscover(true));
-  $("#watch_region").onchange = () => loadProviders($("#watch_region").value);
-  loadProviders(state.filters.watch_region || "US");
+  $("#watch_region").value =
+    state.filters.watch_region || state.streamingRegion;
+  $("#watch_region").onchange = () =>
+    loadProviders($("#watch_region").value, "discovery-services", [], false);
+  loadProviders(
+    state.filters.watch_region || state.streamingRegion,
+    "discovery-services",
+    state.filters.providerIds || [],
+    state.filters.useMyServices,
+  );
   if (state.results.length) renderResults();
   else fetchDiscover();
 }
-async function loadProviders(region) {
-  const select = $("#with_watch_providers");
+const providerCache = new Map();
+async function loadProviders(region, target, selected = [], useMy = false) {
+  const host = $("#" + target);
+  if (!host) return;
+  const token = Symbol();
+  host.requestToken = token;
+  host.innerHTML = '<p class="muted">Loading services…</p>';
+  const isDiscovery = target === "discovery-services";
   try {
-    const data = await tmdb("watch/providers/movie", { watch_region: region });
-    if (!select?.isConnected) return;
-    select.innerHTML =
-      '<option value="">Any service</option>' +
-      data.results
-        .sort((a, b) => (a.display_priority || 0) - (b.display_priority || 0))
-        .map(
-          (p) =>
-            `<option value="${p.provider_id}">${esc(p.provider_name)}</option>`,
-        )
-        .join("");
-    select.value =
-      state.filters.watch_region === region
-        ? state.filters.with_watch_providers || ""
-        : "";
+    let providers = providerCache.get(region);
+    if (!providers) {
+      const data = await tmdb("watch/providers/movie", {
+        watch_region: region,
+      });
+      providers = data.results.sort(
+        (a, b) => (a.display_priority || 0) - (b.display_priority || 0),
+      );
+      providerCache.set(region, providers);
+    }
+    if (!host.isConnected || host.requestToken !== token) return;
+    const name = isDiscovery ? "discovery-provider" : "profile-provider";
+    const selectedSet = new Set(selected.map(Number));
+    host.innerHTML = `<details class="service-picker"><summary><span class="service-summary">${isDiscovery ? "Any streaming service" : "Choose your services"}</span></summary><div class="service-options">${isDiscovery ? `<label class="service-option my-services"><input id="use-my-services" type="checkbox" ${useMy ? "checked" : ""}><span>My streaming services<small>${state.streamingServices.length ? state.streamingServices.length + " saved in Profile" : "Add services in Profile first"}</small></span></label>` : ""}<input class="provider-search" type="search" placeholder="Find a service…" aria-label="Find a streaming service"><div class="provider-list-options">${providers.map((p) => `<label class="service-option" data-provider-name="${esc(p.provider_name.toLowerCase())}"><input type="checkbox" name="${name}" value="${p.provider_id}" ${selectedSet.has(p.provider_id) ? "checked" : ""}>${p.logo_path ? `<img src="${image(p.logo_path)}" alt="" loading="lazy">` : ""}<span>${esc(p.provider_name)}</span></label>`).join("")}</div><p class="provider-empty muted" hidden>No services match that name.</p></div></details>`;
+    const updateSummary = () => {
+      const count = host.querySelectorAll(
+        `input[name="${name}"]:checked`,
+      ).length;
+      const mine = !!$("#use-my-services", host)?.checked;
+      $(".service-summary", host).textContent = mine
+        ? `My services${count ? " + " + count + " more" : ""}`
+        : count
+          ? `${count} service${count === 1 ? "" : "s"} selected`
+          : isDiscovery
+            ? "Any streaming service"
+            : "Choose your services";
+    };
+    host.addEventListener("change", updateSummary, {
+      signal: createPickerSignal(host),
+    });
+    updateSummary();
+    $(".provider-search", host).oninput = (e) => {
+      const query = e.target.value.trim().toLowerCase();
+      let visible = 0;
+      host.querySelectorAll("[data-provider-name]").forEach((row) => {
+        row.hidden = !row.dataset.providerName.includes(query);
+        if (!row.hidden) visible++;
+      });
+      $(".provider-empty", host).hidden = visible > 0;
+    };
   } catch (e) {
-    toast(e.message);
+    if (!host.isConnected || host.requestToken !== token) return;
+    host.innerHTML =
+      '<p class="muted">Could not load services.</p><button type="button" class="link-button">Try again</button>';
+    $("button", host).onclick = () =>
+      loadProviders(region, target, selected, useMy);
   }
+}
+function createPickerSignal(host) {
+  host.pickerController?.abort();
+  host.pickerController = new AbortController();
+  return host.pickerController.signal;
 }
 async function fetchDiscover(append = false) {
   const request = ++state.request;
@@ -380,6 +449,20 @@ async function fetchDiscover(append = false) {
     results.innerHTML = '<p class="loading">Finding the good stuff…</p>';
   try {
     const f = state.filters;
+    if (
+      state.mode !== "search" &&
+      f.useMyServices &&
+      !state.streamingServices.length
+    )
+      throw new Error(
+        "Add streaming services in Profile, or turn off My streaming services.",
+      );
+    const providerIds = [
+      ...new Set([
+        ...(f.providerIds || []),
+        ...(f.useMyServices ? state.streamingServices : []),
+      ]),
+    ];
     const params =
       state.mode === "search"
         ? { query: state.query }
@@ -387,15 +470,22 @@ async function fetchDiscover(append = false) {
             ...f,
             sort_by: f.sort_by || "popularity.desc",
             "vote_count.gte": 100,
-            "primary_release_date.lte":
-              f["primary_release_date.lte"] ||
-              new Date().toISOString().slice(0, 10),
-            with_watch_monetization_types: f.with_watch_providers
-              ? "flatrate"
-              : "",
-            watch_region: f.watch_region || "US",
+            "primary_release_date.gte": f.yearFrom ? `${f.yearFrom}-01-01` : "",
+            "primary_release_date.lte": f.yearTo
+              ? `${f.yearTo}-12-31`
+              : new Date().toISOString().slice(0, 10),
+            with_watch_providers: providerIds.join("|"),
+            with_watch_monetization_types: providerIds.length ? "flatrate" : "",
+            watch_region: f.watch_region || state.streamingRegion,
           };
-    delete params.hideWatched;
+    for (const key of [
+      "hideWatched",
+      "providerIds",
+      "useMyServices",
+      "yearFrom",
+      "yearTo",
+    ])
+      delete params[key];
     const data = await tmdb(
       state.mode === "search" ? "search/movie" : "discover/movie",
       { ...params, page: nextPage, include_adult: false },
@@ -456,8 +546,10 @@ async function details(movie, entry = null) {
     (v) => v.site === "YouTube" && v.type === "Trailer",
   );
   const providers =
-    data["watch/providers"]?.results?.[state.filters.watch_region || "US"];
-  const region = state.filters.watch_region || "US";
+    data["watch/providers"]?.results?.[
+      state.filters.watch_region || state.streamingRegion
+    ];
+  const region = state.filters.watch_region || state.streamingRegion;
   openModal(
     `${poster ? `<img class="detail-poster" src="${esc(poster)}" alt="${esc(movie.title)} poster">` : ""}<div class="detail-heading"><p class="eyebrow">${entry ? "On your watchlist" : "Worth a watch"}</p><h2>${esc(data.title || movie.title)}</h2><p class="muted">${esc(data.release_date?.slice(0, 4) || movie.release_year || "")} ${data.runtime ? "· " + data.runtime + " min" : ""}</p>${data.vote_average ? `<p>★ ${Number(data.vote_average).toFixed(1)} <span class="muted">TMDB audience score</span></p>` : ""}</div><p class="overview">${esc(data.overview || movie.description || "No synopsis available for this movie.")}</p>${providers?.flatrate?.length ? `<p class="muted">Streaming in ${region}</p><div class="provider-list">${providers.flatrate.map((p) => `<img src="${image(p.logo_path)}" alt="${esc(p.provider_name)}" title="${esc(p.provider_name)}">`).join("")}</div><a class="link-button" href="${esc(providers.link)}" target="_blank" rel="noopener">Check availability on TMDB / JustWatch ↗</a>` : '<p class="muted">No subscription streaming information available for this country.</p>'}<div class="details-actions">${entry ? `<button id="toggle-watched" class="button">${entry.watched ? "Move to watchlist" : "Mark watched"}</button><button id="remove-movie" class="button danger">Remove</button>` : `<label for="save-group">Save to watchlist</label><select id="save-group">${state.groups.map((g) => `<option value="${g.group_id}" ${g.group_id === state.group?.group_id ? "selected" : ""}>${esc(g.group_name)}</option>`).join("")}</select><button id="save-movie" class="button" ${!state.group ? "disabled" : ""}>＋ Add to watchlist</button>`}${trailer ? `<a class="button secondary" href="https://www.youtube.com/watch?v=${encodeURIComponent(trailer.key)}" target="_blank" rel="noopener">Watch trailer ↗</a>` : ""}${data.external_ids?.imdb_id ? `<a class="button secondary" href="https://www.imdb.com/title/${encodeURIComponent(data.external_ids.imdb_id)}/" target="_blank" rel="noopener">IMDb ↗</a>` : ""}</div>`,
   );
@@ -633,7 +725,39 @@ function groups() {
   };
 }
 function profile() {
-  app.innerHTML = `<div class="profile"><p class="eyebrow">Your corner of the cinema</p><h1>Hey, movie lover.</h1><p class="subtitle">${esc(state.user.email)}</p><div class="form-panel"><h3>Movie Mojo, on your home screen</h3><p class="muted">On iPhone: open in Safari, tap Share, then Add to Home Screen. On Android: use your browser's Install app option.</p></div><div class="form-panel"><h3>Your current watchlist</h3><p class="muted">${esc(state.group?.group_name || "No watchlist selected")}</p>${state.group ? `<button id="leave-group" class="button danger">${state.group.created_by === state.user.id ? "Delete watchlist" : "Leave group"}</button>` : ""}</div><button class="button secondary" id="refresh-data">Refresh watchlists</button><button class="button secondary" id="logout">Sign out</button><p class="muted">Movie information provided by TMDB. Streaming availability provided by JustWatch via TMDB. This product uses the TMDB API but is not endorsed or certified by TMDB.</p></div>`;
+  app.innerHTML = `<div class="profile"><p class="eyebrow">Your corner of the cinema</p><h1>Hey, movie lover.</h1><p class="subtitle">${esc(state.user.email)}</p><div class="form-panel"><h3>Your streaming services</h3><p class="muted">Save the services you have, then choose “My streaming services” in Discover.</p><form id="streaming-profile" class="streaming-profile"><div><label for="profile-region">Country</label><select id="profile-region"><option value="US">United States</option><option value="GB">United Kingdom</option><option value="CA">Canada</option><option value="AU">Australia</option></select></div><div id="profile-services"></div><button class="button" type="submit">Save streaming services</button></form></div><div class="form-panel"><h3>Movie Mojo, on your home screen</h3><p class="muted">On iPhone: open in Safari, tap Share, then Add to Home Screen. On Android: use your browser's Install app option.</p></div><div class="form-panel"><h3>Your current watchlist</h3><p class="muted">${esc(state.group?.group_name || "No watchlist selected")}</p>${state.group ? `<button id="leave-group" class="button danger">${state.group.created_by === state.user.id ? "Delete watchlist" : "Leave group"}</button>` : ""}</div><button class="button secondary" id="refresh-data">Refresh watchlists</button><button class="button secondary" id="logout">Sign out</button><p class="muted">Movie information provided by TMDB. Streaming availability provided by JustWatch via TMDB. This product uses the TMDB API but is not endorsed or certified by TMDB.</p></div>`;
+  $("#profile-region").value = state.streamingRegion;
+  loadProviders(
+    state.streamingRegion,
+    "profile-services",
+    state.streamingServices,
+  );
+  $("#profile-region").onchange = () =>
+    loadProviders($("#profile-region").value, "profile-services");
+  $("#streaming-profile").onsubmit = (e) => {
+    e.preventDefault();
+    run($("#streaming-profile button[type=submit]"), async () => {
+      if (!$("#profile-services .service-picker"))
+        throw new Error("Wait for streaming services to load before saving.");
+      const ids = new FormData(e.target).getAll("profile-provider").map(Number);
+      const region = $("#profile-region").value;
+      const rows = checked(
+        await db
+          .from("user_profiles")
+          .update({ streaming_services: ids, streaming_region: region })
+          .eq("id", state.user.id)
+          .select("id"),
+      );
+      if (!rows.length)
+        throw new Error(
+          "Could not save your streaming services. Please try again.",
+        );
+      state.streamingServices = ids;
+      state.streamingRegion = region;
+      state.results = [];
+      toast("Streaming services saved.");
+    });
+  };
   $("#logout").onclick = logout;
   $("#refresh-data").onclick = (e) =>
     run(e.currentTarget, async () => {
@@ -691,6 +815,9 @@ async function initialize(user) {
   $("#navigation").hidden = true;
   if (!user) {
     state.approved = false;
+    state.streamingServices = [];
+    state.streamingRegion = "US";
+    state.filters = {};
     render();
     return;
   }
@@ -699,12 +826,14 @@ async function initialize(user) {
     const profile = checked(
       await db
         .from("user_profiles")
-        .select("approved")
+        .select("approved, streaming_services, streaming_region")
         .eq("id", user.id)
         .maybeSingle(),
     );
     if (version !== authVersion) return;
     state.approved = !!profile?.approved;
+    state.streamingServices = profile?.streaming_services || [];
+    state.streamingRegion = profile?.streaming_region || "US";
     if (state.approved) await loadGroups();
     if (version !== authVersion) return;
     $("#navigation").hidden = !state.approved;

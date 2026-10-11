@@ -100,7 +100,11 @@ const fixture = {
               },
               maybeSingle() {
                 return Promise.resolve({
-                  data: { approved: true },
+                  data: {
+                    approved: true,
+                    streaming_services: fixture.services || [],
+                    streaming_region: "US",
+                  },
                   error: null,
                 });
               },
@@ -108,7 +112,9 @@ const fixture = {
                 return Promise.resolve({ data: { id: "saved" }, error: null });
               },
               update(value) {
-                fixture.movies[0].watched = value.watched;
+                if (table === "user_profiles")
+                  fixture.services = value.streaming_services;
+                else fixture.movies[0].watched = value.watched;
                 chain.changed = true;
                 return chain;
               },
@@ -145,6 +151,11 @@ const fixture = {
       ? {
           results: [
             { provider_id: 8, provider_name: "Netflix", display_priority: 1 },
+            {
+              provider_id: 9,
+              provider_name: "Amazon Prime Video",
+              display_priority: 2,
+            },
           ],
         }
       : url.pathname.includes("/movie/")
@@ -192,8 +203,26 @@ const fixture = {
   await page.waitForFunction(
     () => document.querySelectorAll(".movie-card").length === 1,
   );
+  await page.locator("[data-tab=profile]").click();
+  await page.locator("#profile-services summary").click();
+  await page.locator('[name="profile-provider"][value="8"]').check();
+  await page.locator('[name="profile-provider"][value="9"]').check();
+  await page.locator("#streaming-profile button[type=submit]").click();
+  await page.waitForFunction(() => testData.services?.length === 2);
+  await page.evaluate(() => initialize(state.user));
+  await page.locator("#profile-services summary").click();
+  assert(
+    await page.locator('[name="profile-provider"][value="8"]').isChecked(),
+  );
+  assert(
+    await page.locator('[name="profile-provider"][value="9"]').isChecked(),
+  );
   await page.locator("[data-tab=discover]").click();
   await page.locator("#results .movie-card").waitFor();
+  await page.locator("#discovery-services summary").click();
+  await page.locator("#use-my-services").check();
+  await page.locator("#year-from").fill("2000");
+  await page.locator("#year-to").fill("2020");
   await page.selectOption("#with_genres", "878");
   await page.selectOption('[name="vote_average.gte"]', "7");
   await page.selectOption('[name="with_runtime.lte"]', "120");
@@ -207,6 +236,38 @@ const fixture = {
         u.includes("with_runtime.lte=120"),
     ),
   );
+  const lastDiscover = () =>
+    new URL(urls.filter((u) => u.includes("/discover/movie")).at(-1));
+  assert.equal(lastDiscover().searchParams.get("with_watch_providers"), "8|9");
+  assert.equal(
+    lastDiscover().searchParams.get("primary_release_date.gte"),
+    "2000-01-01",
+  );
+  assert.equal(
+    lastDiscover().searchParams.get("primary_release_date.lte"),
+    "2020-12-31",
+  );
+  assert(!lastDiscover().searchParams.has("useMyServices"));
+  await page.locator("#use-my-services").uncheck();
+  await page.locator('[name="discovery-provider"][value="8"]').check();
+  await page.locator('[name="discovery-provider"][value="9"]').check();
+  await page.locator("#filter-form button[type=submit]").click();
+  await page.waitForTimeout(200);
+  assert.equal(lastDiscover().searchParams.get("with_watch_providers"), "8|9");
+  await page.locator("#discovery-services .provider-search").fill("netflix");
+  assert(
+    await page.locator('[data-provider-name="amazon prime video"]').isHidden(),
+  );
+  await page.locator("#discovery-services .provider-search").fill("");
+  assert(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= innerWidth,
+    ),
+  );
+  await page.screenshot({
+    path: "/tmp/mojo-streaming-discover.png",
+    fullPage: true,
+  });
   await page.locator("#query").fill("Inception");
   await page.locator("#search-form").evaluate((f) => f.requestSubmit());
   await page.waitForTimeout(200);
@@ -231,7 +292,7 @@ const fixture = {
   await page.screenshot({ path: "/tmp/mojo-desktop.png", fullPage: true });
   assert.equal(errors.length, 0, errors.join("\n"));
   console.log(
-    "PASS: mobile overflow, watchlist separation, picker excludes watched, mark watched, discovery filters, title search, details, invites, desktop layout, no JS errors.",
+    "PASS: mobile overflow, watchlist separation, picker excludes watched, mark watched, saved/reloaded streaming profiles, multi-select and My services filters, provider search, year ranges, title search, details, invites, desktop layout, no JS errors.",
   );
   await browser.close();
 })().catch((e) => {

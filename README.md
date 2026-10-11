@@ -8,6 +8,8 @@ A mobile-first movie-night app for private friend groups, hosted on GitHub Pages
 - Equal-chance random picker from the selected group's unwatched movies.
 - Title search and catalog discovery by genre, release dates, audience score, runtime, subscription streaming provider, and country. Title search and catalog filters are separate modes.
 - Movie details, trailers, IMDb links, and streaming availability via TMDB / JustWatch.
+- Streaming services saved in your profile with a country setting, searchable multi-select discovery filters, and a “My streaming services” shortcut. Multiple services match movies available on any selection.
+- Compact release-year range with From and To controls.
 - Personal lists use the same group model; invite friends whenever you want to share.
 - Account approval, group invitations, checked write errors, and safe text rendering.
 - Relative PWA URLs, home-screen support, and a network-first cached application shell. Live movies and authentication still need a network connection.
@@ -19,6 +21,8 @@ Serve this directory on GitHub Pages; no build step is required. `config.js` con
 For local preview: `python3 -m http.server 8765`.
 
 ## Database
+
+`database-streaming.sql` adds private streaming preferences with column-limited profile updates; approval remains admin-only.
 
 `database-revamp.sql` records the schema/access changes applied for this release. It preserves existing lists, movies, accounts, and ratings. Approved users can access only groups they belong to; only creators can delete groups. Internal privileged functions live in `mojo_private`, which must remain outside the exposed Data API schemas. Public wrappers run as invoker. Account approvals remain an admin operation in the Supabase dashboard.
 

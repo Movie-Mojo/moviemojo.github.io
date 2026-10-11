@@ -16,6 +16,9 @@ const { chromium } = require("playwright");
   const result = await page.evaluate(async () => {
     const d = await tmdb("discover/movie", {
       with_genres: 878,
+      with_watch_providers: "8|9",
+      watch_region: "US",
+      with_watch_monetization_types: "flatrate",
       "vote_average.gte": 7,
       "vote_count.gte": 100,
       "with_runtime.lte": 120,
