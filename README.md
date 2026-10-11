@@ -50,3 +50,5 @@ Movie metadata is provided by TMDB. This product uses the TMDB API but is not en
 Friends use shared friend codes with accepted requests. Group members can send in-app invitations to accepted friends; recipients must accept before joining. Emails remain private. `database-friends.sql` records the checked RPC and private social tables.
 
 Friend watched profiles combine movies currently marked watched in any of a user’s groups. Titles are shared with accepted friends, without group names or notes. Profile → Manage watched history lets the owner remove or restore personal exceptions without changing group lists. `database-watched-profiles.sql` records this access-controlled feature.
+
+Every account receives a permanent personal list, protected against sharing, leaving, or deletion. Group Invite offers copyable links and native sharing. Signup saves a pending invitation in user metadata solely as a bearer invite code; verification completes the join. Existing users explicitly accept invite links. `database-personal-lists.sql` records personal-list enforcement.

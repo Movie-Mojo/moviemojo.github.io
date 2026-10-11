@@ -8,6 +8,12 @@ const fixture = {
   },
   groups: [
     {
+      group_id: "66666666-6666-6666-6666-666666666666",
+      group_name: "My personal list",
+      created_by: "11111111-1111-1111-1111-111111111111",
+      member_count: 1,
+    },
+    {
       group_id: "22222222-2222-2222-2222-222222222222",
       group_name: "Friday Night Crew",
       created_by: "11111111-1111-1111-1111-111111111111",
@@ -80,8 +86,28 @@ const fixture = {
                 0,
               ),
             signOut: async () => ({ error: null }),
+            updateUser: async ({ data }) => {
+              Object.assign((fixture.user.user_metadata ||= {}), data);
+              return { error: null };
+            },
           },
           rpc: async (name, args) => {
+            if (name === "mojo_join_group") {
+              fixture.joinedInvite = args.invite_code;
+              if (!fixture.groups.some((g) => g.group_id === args.invite_code))
+                fixture.groups.push({
+                  group_id: args.invite_code,
+                  group_name: "Invited group",
+                  created_by: fixture.user.id,
+                  member_count: 2,
+                });
+              return { error: null };
+            }
+            if (name === "mojo_personal_list")
+              return {
+                data: "66666666-6666-6666-6666-666666666666",
+                error: null,
+              };
             if (name === "mojo_group_people")
               return {
                 data: [
@@ -94,13 +120,27 @@ const fixture = {
                 ],
                 error: null,
               };
-            if(name === "mojo_watched_profile") {
- if(args.action==='remove')fixture.historyRemoved=true;
- if(args.action==='restore')fixture.historyRemoved=false;
- const movie={id:'history1',title:'Arrival',release_year:2016};
- return {data:{name:'Sam',movies:fixture.historyRemoved?[]:[movie],excluded:args.person===fixture.user.id&&fixture.historyRemoved?[movie]:[]},error:null};
- }
- if (name === "mojo_social") {
+            if (name === "mojo_watched_profile") {
+              if (args.action === "remove") fixture.historyRemoved = true;
+              if (args.action === "restore") fixture.historyRemoved = false;
+              const movie = {
+                id: "history1",
+                title: "Arrival",
+                release_year: 2016,
+              };
+              return {
+                data: {
+                  name: "Sam",
+                  movies: fixture.historyRemoved ? [] : [movie],
+                  excluded:
+                    args.person === fixture.user.id && fixture.historyRemoved
+                      ? [movie]
+                      : [],
+                },
+                error: null,
+              };
+            }
+            if (name === "mojo_social") {
               fixture.socialCalls = (fixture.socialCalls || []).concat(args);
               return {
                 data: {
@@ -288,15 +328,15 @@ const fixture = {
     () => document.querySelectorAll(".movie-card").length === 1,
   );
   await page.locator("[data-tab=profile]").click();
-  await page.locator('#my-watched-history').click();
- await page.getByRole('heading',{name:'Arrival',exact:true}).waitFor();
- await page.locator('[data-history=remove]').click();
- await page.getByText('No watched movies yet.',{exact:true}).waitFor();
- await page.locator('#modal-content details summary').click();
- await page.locator('[data-history=restore]').click();
- await page.getByRole('heading',{name:'Arrival',exact:true}).waitFor();
- await page.locator('#close-modal').click();
- await page.locator("#display-name").fill("Alex");
+  await page.locator("#my-watched-history").click();
+  await page.getByRole("heading", { name: "Arrival", exact: true }).waitFor();
+  await page.locator("[data-history=remove]").click();
+  await page.getByText("No watched movies yet.", { exact: true }).waitFor();
+  await page.locator("#modal-content details summary").click();
+  await page.locator("[data-history=restore]").click();
+  await page.getByRole("heading", { name: "Arrival", exact: true }).waitFor();
+  await page.locator("#close-modal").click();
+  await page.locator("#display-name").fill("Alex");
   await page.locator("#display-name-form button").click();
   await page.waitForFunction(() => testData.displayName === "Alex");
   await page.locator("#profile-services summary").click();
@@ -423,6 +463,7 @@ const fixture = {
   await page.locator("#close-modal").click();
   await page.locator("[data-tab=groups]").click();
   await page.getByRole("heading", { name: "Your movie circles." }).waitFor();
+  assert.equal(await page.locator("[data-invite]").count(), 1);
   await page.locator("[data-members]").click();
   await page.getByRole("heading", { name: "Taylor", exact: true }).waitFor();
   await page.getByRole("button", { name: "Add friend", exact: true }).click();
@@ -437,7 +478,11 @@ const fixture = {
   await page.locator("[data-invite]").click();
   assert.equal(
     await page.locator("#invite-code").inputValue(),
-    fixture.groups[0].group_id,
+    fixture.groups[1].group_id,
+  );
+  assert.equal(
+    await page.locator("#invite-link").inputValue(),
+    new URL(page.url()).origin + "/?invite=" + fixture.groups[1].group_id,
   );
   await page.locator("#send-direct-invite").click();
   await page.waitForFunction(() =>
@@ -447,10 +492,10 @@ const fixture = {
   await page.locator("[data-tab=friends]").click();
   await page.getByRole("heading", { name: "Friends.", exact: true }).waitFor();
   await page.getByRole("heading", { name: "Sam", exact: true }).waitFor();
- await page.locator('[data-history-person]').click();
- await page.getByRole('heading',{name:'Arrival',exact:true}).waitFor();
- assert.equal(await page.locator('[data-history]').count(),0);
- await page.locator('#close-modal').click();
+  await page.locator("[data-history-person]").click();
+  await page.getByRole("heading", { name: "Arrival", exact: true }).waitFor();
+  assert.equal(await page.locator("[data-history]").count(), 0);
+  await page.locator("#close-modal").click();
   await page
     .locator("#friend-code")
     .fill("44444444-4444-4444-4444-444444444444");
@@ -467,6 +512,25 @@ const fixture = {
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.locator("[data-tab=watchlist]").click();
   await page.screenshot({ path: "/tmp/mojo-desktop.png", fullPage: true });
+  const baseURL = page.url().split("#")[0].split("?")[0];
+  await page.goto(baseURL + "?invite=77777777-7777-7777-7777-777777777777");
+  await page.locator("#accept-link").click();
+  await page.waitForFunction(
+    () => testData.joinedInvite === "77777777-7777-7777-7777-777777777777",
+  );
+  await page.locator("#close-modal").waitFor({ state: "hidden" });
+  await page.addInitScript(() => {
+    testData.user.user_metadata = {
+      mojo_invite: "88888888-8888-8888-8888-888888888888",
+    };
+  });
+  await page.goto(baseURL);
+  await page.waitForFunction(
+    () => testData.joinedInvite === "88888888-8888-8888-8888-888888888888",
+  );
+  await page.waitForFunction(
+    () => testData.user.user_metadata.mojo_invite === null,
+  );
   assert.equal(errors.length, 0, errors.join("\n"));
   console.log(
     "PASS: mobile overflow, watchlist separation, picker excludes watched, mark watched, saved/reloaded streaming profiles, multi-select and My services filters, provider search, year ranges, title search, details, invites, desktop layout, no JS errors.",
