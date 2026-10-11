@@ -14,6 +14,9 @@ A mobile-first movie-night app for private friend groups, hosted on GitHub Pages
 - Account approval, group invitations, checked write errors, and safe text rendering.
 - Relative PWA URLs, home-screen support, and a network-first cached application shell. Live movies and authentication still need a network connection.
 
+- Discover mood shortcuts preserve your streaming preferences.
+- Watchlist cards show who suggested a movie and an optional note. Set your display name in Profile; only the contributor can edit their note.
+
 ## Hosting
 
 Serve this directory on GitHub Pages; no build step is required. `config.js` contains the Supabase public anon key and existing TMDB API key. Never put a Supabase service-role/secret key in browser code. Supabase JS is pinned in `index.html`.
@@ -21,6 +24,8 @@ Serve this directory on GitHub Pages; no build step is required. `config.js` con
 For local preview: `python3 -m http.server 8765`.
 
 ## Database
+
+`database-suggestions.sql` adds display names and group-private suggestion notes with author-only editing.
 
 `database-streaming.sql` adds private streaming preferences with column-limited profile updates; approval remains admin-only.
 
@@ -35,6 +40,7 @@ Browser tests use Playwright and a local server. Set `NODE_PATH` to your Playwri
 - `node --check app.js`
 - `node tests/browser.cjs`: fixture-based UI tests, mobile overflow, watched separation, picker, filters, search, details, invites, and desktop layout.
 - `node tests/live-api.cjs`: live signed-out startup and TMDB API smoke tests. Does not sign in or modify user data.
+- `tests/database-suggestions.sql`: transactional contributor privacy and note permissions checks.
 - `tests/database-access.sql`: transactional database access tests; generated fixtures are rolled back.
 
 Supabase's remaining platform advisories are an available Postgres security upgrade and disabled leaked-password protection. Configure these in the project dashboard.

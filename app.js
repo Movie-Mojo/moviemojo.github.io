@@ -6,6 +6,8 @@ const app = $("#app"),
 const state = {
   user: null,
   approved: false,
+  displayName: "",
+  contributors: {},
   streamingServices: [],
   streamingRegion: "US",
   groups: [],
@@ -77,11 +79,16 @@ modal.addEventListener("click", (e) => {
 function empty(title, body, action = "") {
   return `<div class="empty"><h3>${esc(title)}</h3><p class="muted">${esc(body)}</p>${action}</div>`;
 }
-function card(movie, index) {
+function contributorName(entry) {
+  return entry.added_by === state.user?.id
+    ? state.displayName || "You"
+    : state.contributors[entry.added_by] || "Group member";
+}
+function card(movie, index, entry = null) {
   const poster = movie.poster_url || image(movie.poster_path);
   const year =
     movie.release_year || movie.release_date?.slice(0, 4) || "Year unknown";
-  return `<button class="movie-card" data-movie="${index}" aria-label="Details for ${esc(movie.title)}"><div class="poster-wrap">${poster ? `<img loading="lazy" src="${esc(poster)}" alt="${esc(movie.title)} poster" onerror="this.hidden=true">` : '<div class="poster-fallback">✦</div>'}${movie.vote_average ? `<span class="score">★ ${Number(movie.vote_average).toFixed(1)}</span>` : ""}</div><h3>${esc(movie.title)}</h3><p>${esc(year)}</p></button>`;
+  return `<button class="movie-card" data-movie="${index}" aria-label="Details for ${esc(movie.title)}"><div class="poster-wrap">${poster ? `<img loading="lazy" src="${esc(poster)}" alt="${esc(movie.title)} poster" onerror="this.hidden=true">` : '<div class="poster-fallback">✦</div>'}${movie.vote_average ? `<span class="score">★ ${Number(movie.vote_average).toFixed(1)}</span>` : ""}</div><h3>${esc(movie.title)}</h3><p>${esc(year)}</p>${entry ? `<p class="added-by">Added by ${esc(contributorName(entry))}</p>${entry.suggestion_note ? `<p class="card-note">“${esc(entry.suggestion_note)}”</p>` : ""}` : ""}</button>`;
 }
 function bindCards(list, entries = false) {
   app
@@ -117,13 +124,23 @@ async function loadMovies() {
         await db
           .from("group_movies")
           .select(
-            "id,watched,added_by,added_at,movies(id,title,description,poster_url,release_year,tmdb_id)",
+            "id,watched,added_by,added_at,suggestion_note,movies(id,title,description,poster_url,release_year,tmdb_id)",
           )
           .eq("group_id", state.group.group_id)
           .order("added_at", { ascending: false }),
       )
     : [];
   state.movies = state.movies.filter((m) => m.movies);
+  const contributors = state.group
+    ? checked(
+        await db.rpc("mojo_group_contributors", {
+          target_group: state.group.group_id,
+        }),
+      ) || []
+    : [];
+  state.contributors = Object.fromEntries(
+    contributors.map((p) => [p.user_id, p.display_name]),
+  );
 }
 async function switchGroup(id) {
   state.group = state.groups.find((g) => g.group_id === id);
@@ -214,7 +231,7 @@ function auth(signup = false) {
 }
 function watchlist() {
   const entries = state.movies.filter((m) => !!m.watched === state.watched);
-  app.innerHTML = `<p class="eyebrow">Your movie night, sorted</p><h1>The watchlist.</h1><p class="subtitle">Less scrolling. More watching.</p><div class="toolbar"><select id="group-select" class="group-select" aria-label="Choose watchlist">${state.groups.map((g) => `<option value="${esc(g.group_id)}" ${g.group_id === state.group?.group_id ? "selected" : ""}>${esc(g.group_name)}</option>`).join("") || "<option>No watchlists yet</option>"}</select><button id="add-movie" class="button secondary">＋ Add a movie</button></div><section class="picker-hero"><div><p class="eyebrow">Let fate take the remote</p><h2>Can't decide tonight?</h2><p>One random pick from your unwatched movies.<br>Every movie gets an equal shot.</p></div><button class="button" id="pick">✦ Pick tonight</button></section><div class="section-row"><div class="pills"><button class="pill ${!state.watched ? "active" : ""}" id="unwatched">To watch</button><button class="pill ${state.watched ? "active" : ""}" id="watched">Watched</button></div><span class="count">${entries.length} movie${entries.length === 1 ? "" : "s"}</span></div><div class="grid">${entries.map((m, i) => card(m.movies, i)).join("") || empty(state.group ? "The opening scene." : "Bring your people together.", state.group ? "Add a few movies to get your next movie night started." : "Create a group, or a watchlist just for you.", `<button id="empty-action" class="button">${state.group ? "Find a movie" : "Create a watchlist"}</button>`)}</div><div class="manual"><button id="manual-add" class="link-button">Can't find it? Add a movie manually</button></div>`;
+  app.innerHTML = `<p class="eyebrow">Your movie night, sorted</p><h1>The watchlist.</h1><p class="subtitle">Less scrolling. More watching.</p><div class="toolbar"><select id="group-select" class="group-select" aria-label="Choose watchlist">${state.groups.map((g) => `<option value="${esc(g.group_id)}" ${g.group_id === state.group?.group_id ? "selected" : ""}>${esc(g.group_name)}</option>`).join("") || "<option>No watchlists yet</option>"}</select><button id="add-movie" class="button secondary">＋ Add a movie</button></div><section class="picker-hero"><div><p class="eyebrow">Let fate take the remote</p><h2>Can't decide tonight?</h2><p>One random pick from your unwatched movies.<br>Every movie gets an equal shot.</p></div><button class="button" id="pick">✦ Pick tonight</button></section><div class="section-row"><div class="pills"><button class="pill ${!state.watched ? "active" : ""}" id="unwatched">To watch</button><button class="pill ${state.watched ? "active" : ""}" id="watched">Watched</button></div><span class="count">${entries.length} movie${entries.length === 1 ? "" : "s"}</span></div><div class="grid">${entries.map((m, i) => card(m.movies, i, m)).join("") || empty(state.group ? "The opening scene." : "Bring your people together.", state.group ? "Add a few movies to get your next movie night started." : "Create a group, or a watchlist just for you.", `<button id="empty-action" class="button">${state.group ? "Find a movie" : "Create a watchlist"}</button>`)}</div><div class="manual"><button id="manual-add" class="link-button">Can't find it? Add a movie manually</button></div>`;
   $("#group-select").onchange = (e) =>
     run(e.currentTarget, () => switchGroup(e.target.value));
   $("#add-movie").onclick = () => go("discover");
@@ -283,8 +300,19 @@ const genres = [
 function select(name, label, options) {
   return `<div><label for="${name}">${label}</label><select id="${name}" name="${name}">${options.map(([v, l]) => `<option value="${v}" ${String(state.filters[name] || "") === String(v) ? "selected" : ""}>${l}</option>`).join("")}</select></div>`;
 }
+const moodShortcuts = [
+  { label: "Make me laugh", filters: { with_genres: "35" } },
+  { label: "Keep me guessing", filters: { with_genres: "53|9648" } },
+  { label: "Family night", filters: { with_genres: "10751" } },
+  { label: "Out of this world", filters: { with_genres: "878|14" } },
+  { label: "Under 90 minutes", filters: { "with_runtime.lte": "90" } },
+  {
+    label: "Highly rated",
+    filters: { "vote_average.gte": "8", sort_by: "vote_average.desc" },
+  },
+];
 function discover() {
-  app.innerHTML = `<p class="eyebrow">A little inspiration</p><h1>Find your next favorite.</h1><p class="subtitle">Follow a mood. Explore a genre. See what catches your eye.</p><form id="search-form" class="search-row"><input name="query" id="query" type="search" placeholder="Search movie titles…" aria-label="Movie title" value="${esc(state.query)}"><button class="button" type="submit">Search</button></form><details class="filters" ${state.mode === "discover" ? "open" : ""}><summary>Browse by filters</summary><form id="filter-form"><p class="muted">Filters browse the movie catalog. Title search runs separately.</p><div class="filter-grid">${select("with_genres", "Genre", [["", "All genres"], ...genres])}<fieldset class="release-years"><legend>Release year</legend><div class="year-range"><div><label for="year-from">From</label><input id="year-from" name="yearFrom" type="number" min="1874" max="2100" placeholder="Any" inputmode="numeric" value="${esc(state.filters.yearFrom || "")}"></div><span aria-hidden="true">–</span><div><label for="year-to">To</label><input id="year-to" name="yearTo" type="number" min="1874" max="2100" placeholder="Any" inputmode="numeric" value="${esc(state.filters.yearTo || "")}"></div></div></fieldset>${select(
+  app.innerHTML = `<p class="eyebrow">A little inspiration</p><h1>Find your next favorite.</h1><p class="subtitle">Follow a mood. Explore a genre. See what catches your eye.</p><div class="mood-shortcuts" aria-label="Movie mood shortcuts">${moodShortcuts.map((m, i) => `<button class="mood-chip ${state.filters.mood === m.label ? "active" : ""}" data-mood="${i}">${m.label}</button>`).join("")}</div><form id="search-form" class="search-row"><input name="query" id="query" type="search" placeholder="Search movie titles…" aria-label="Movie title" value="${esc(state.query)}"><button class="button" type="submit">Search</button></form><details class="filters" ${state.mode === "discover" ? "open" : ""}><summary>Browse by filters</summary><form id="filter-form"><p class="muted">Filters browse the movie catalog. Title search runs separately.</p><div class="filter-grid">${select("with_genres", "Genre", [["", "All genres"], ...(state.filters.mood && state.filters.with_genres?.includes("|") ? [[state.filters.with_genres, "Mood selection"]] : []), ...genres])}<fieldset class="release-years"><legend>Release year</legend><div class="year-range"><div><label for="year-from">From</label><input id="year-from" name="yearFrom" type="number" min="1874" max="2100" placeholder="Any" inputmode="numeric" value="${esc(state.filters.yearFrom || "")}"></div><span aria-hidden="true">–</span><div><label for="year-to">To</label><input id="year-to" name="yearTo" type="number" min="1874" max="2100" placeholder="Any" inputmode="numeric" value="${esc(state.filters.yearTo || "")}"></div></div></fieldset>${select(
     "vote_average.gte",
     "Minimum audience score",
     [
@@ -308,6 +336,25 @@ function discover() {
     ["CA", "Canada"],
     ["AU", "Australia"],
   ])}<div class="streaming-filter"><label>Streaming services</label><div id="discovery-services"></div></div></div><label class="checkbox"><input type="checkbox" id="hide-watched" ${state.filters.hideWatched ? "checked" : ""}> Hide movies watched by this group</label><div class="filter-actions"><button class="button" type="submit">Find movies →</button><button class="button secondary" id="reset-filters" type="button">Reset</button></div></form></details><div class="section-row"><h2 id="results-title">${state.mode === "search" ? "Search results" : "Your next obsession"}</h2><span class="count">${state.group ? esc(state.group.group_name) : "Choose a group to save movies"}</span></div><div id="results" class="grid"></div><button class="button secondary full" id="load-more" hidden>Load more movies</button>`;
+  app.querySelectorAll("[data-mood]").forEach(
+    (button) =>
+      (button.onclick = () => {
+        const mood = moodShortcuts[Number(button.dataset.mood)];
+        state.filters = {
+          watch_region: state.filters.watch_region || state.streamingRegion,
+          providerIds: state.filters.providerIds || [],
+          useMyServices: !!state.filters.useMyServices,
+          hideWatched: !!state.filters.hideWatched,
+          ...mood.filters,
+          mood: mood.label,
+        };
+        state.mode = "discover";
+        state.query = "";
+        state.page = 1;
+        state.results = [];
+        discover();
+      }),
+  );
   $("#search-form").onsubmit = (e) => {
     e.preventDefault();
     state.query = $("#query").value.trim();
@@ -597,6 +644,7 @@ async function fetchDiscover(append = false) {
       "useMyServices",
       "yearFrom",
       "yearTo",
+      "mood",
     ])
       delete params[key];
     const data = await tmdb(
@@ -633,7 +681,7 @@ function renderResults() {
     (m) => !state.filters.hideWatched || !watched.has(String(m.id)),
   );
   $("#results").innerHTML =
-    list.map(card).join("") ||
+    list.map((m, i) => card(m, i)).join("") ||
     empty(
       "No matches this time.",
       "Try a broader genre, date range, or lower audience score.",
@@ -664,8 +712,24 @@ async function details(movie, entry = null) {
     ];
   const region = state.filters.watch_region || state.streamingRegion;
   openModal(
-    `${poster ? `<img class="detail-poster" src="${esc(poster)}" alt="${esc(movie.title)} poster">` : ""}<div class="detail-heading"><p class="eyebrow">${entry ? "On your watchlist" : "Worth a watch"}</p><h2>${esc(data.title || movie.title)}</h2><p class="muted">${esc(data.release_date?.slice(0, 4) || movie.release_year || "")} ${data.runtime ? "· " + data.runtime + " min" : ""}</p>${data.vote_average ? `<p>★ ${Number(data.vote_average).toFixed(1)} <span class="muted">TMDB audience score</span></p>` : ""}</div><p class="overview">${esc(data.overview || movie.description || "No synopsis available for this movie.")}</p>${providers?.flatrate?.length ? `<p class="muted">Streaming in ${region}</p><div class="provider-list">${providers.flatrate.map((p) => `<img src="${image(p.logo_path)}" alt="${esc(p.provider_name)}" title="${esc(p.provider_name)}">`).join("")}</div><a class="link-button" href="${esc(providers.link)}" target="_blank" rel="noopener">Check availability on TMDB / JustWatch ↗</a>` : '<p class="muted">No subscription streaming information available for this country.</p>'}<div class="details-actions">${entry ? `<button id="toggle-watched" class="button">${entry.watched ? "Move to watchlist" : "Mark watched"}</button><button id="remove-movie" class="button danger">Remove</button>` : `<label for="save-group">Save to watchlist</label><select id="save-group">${state.groups.map((g) => `<option value="${g.group_id}" ${g.group_id === state.group?.group_id ? "selected" : ""}>${esc(g.group_name)}</option>`).join("")}</select><button id="save-movie" class="button" ${!state.group ? "disabled" : ""}>＋ Add to watchlist</button>`}${trailer ? `<a class="button secondary" href="https://www.youtube.com/watch?v=${encodeURIComponent(trailer.key)}" target="_blank" rel="noopener">Watch trailer ↗</a>` : ""}${data.external_ids?.imdb_id ? `<a class="button secondary" href="https://www.imdb.com/title/${encodeURIComponent(data.external_ids.imdb_id)}/" target="_blank" rel="noopener">IMDb ↗</a>` : ""}</div>`,
+    `${poster ? `<img class="detail-poster" src="${esc(poster)}" alt="${esc(movie.title)} poster">` : ""}<div class="detail-heading"><p class="eyebrow">${entry ? "On your watchlist" : "Worth a watch"}</p><h2>${esc(data.title || movie.title)}</h2><p class="muted">${esc(data.release_date?.slice(0, 4) || movie.release_year || "")} ${data.runtime ? "· " + data.runtime + " min" : ""}</p>${data.vote_average ? `<p>★ ${Number(data.vote_average).toFixed(1)} <span class="muted">TMDB audience score</span></p>` : ""}</div><p class="overview">${esc(data.overview || movie.description || "No synopsis available for this movie.")}</p>${providers?.flatrate?.length ? `<p class="muted">Streaming in ${region}</p><div class="provider-list">${providers.flatrate.map((p) => `<img src="${image(p.logo_path)}" alt="${esc(p.provider_name)}" title="${esc(p.provider_name)}">`).join("")}</div><a class="link-button" href="${esc(providers.link)}" target="_blank" rel="noopener">Check availability on TMDB / JustWatch ↗</a>` : '<p class="muted">No subscription streaming information available for this country.</p>'}${entry ? `<div class="suggestion"><p class="muted">Added by ${esc(contributorName(entry))}</p>${entry.suggestion_note ? `<blockquote>${esc(entry.suggestion_note)}</blockquote>` : ""}${entry.added_by === state.user.id ? `<form id="note-form"><label for="edit-note">Your suggestion note (optional)</label><textarea id="edit-note" maxlength="500" rows="3" placeholder="Why should we watch this?">${esc(entry.suggestion_note || "")}</textarea><button class="button secondary" type="submit">Save note</button></form>` : ""}</div>` : ""}<div class="details-actions">${entry ? `<button id="toggle-watched" class="button">${entry.watched ? "Move to watchlist" : "Mark watched"}</button><button id="remove-movie" class="button danger">Remove</button>` : `<label for="save-group">Save to watchlist</label><select id="save-group">${state.groups.map((g) => `<option value="${g.group_id}" ${g.group_id === state.group?.group_id ? "selected" : ""}>${esc(g.group_name)}</option>`).join("")}</select><label for="suggestion-note">Suggestion note (optional)</label><textarea id="suggestion-note" maxlength="500" rows="3" placeholder="I’ve heard this is great!"></textarea><button id="save-movie" class="button" ${!state.group ? "disabled" : ""}>＋ Add to watchlist</button>`}${trailer ? `<a class="button secondary" href="https://www.youtube.com/watch?v=${encodeURIComponent(trailer.key)}" target="_blank" rel="noopener">Watch trailer ↗</a>` : ""}${data.external_ids?.imdb_id ? `<a class="button secondary" href="https://www.imdb.com/title/${encodeURIComponent(data.external_ids.imdb_id)}/" target="_blank" rel="noopener">IMDb ↗</a>` : ""}</div>`,
   );
+  if ($("#note-form"))
+    $("#note-form").onsubmit = (e) => {
+      e.preventDefault();
+      run($("#note-form button"), async () => {
+        checked(
+          await db.rpc("mojo_set_suggestion_note", {
+            target_entry: entry.id,
+            note: $("#edit-note").value.trim(),
+          }),
+        );
+        await loadMovies();
+        render();
+        modal.close();
+        toast("Suggestion note saved.");
+      });
+    };
   if (entry) {
     $("#toggle-watched").onclick = (e) =>
       run(e.currentTarget, async () => {
@@ -692,7 +756,11 @@ async function details(movie, entry = null) {
   } else
     $("#save-movie").onclick = (e) =>
       run(e.currentTarget, async () => {
-        await saveMovie(data, $("#save-group").value);
+        await saveMovie(
+          data,
+          $("#save-group").value,
+          $("#suggestion-note").value,
+        );
         modal.close();
         toast("Added to your watchlist.");
       });
@@ -714,7 +782,9 @@ async function setWatched(entry, value) {
   render();
   toast(value ? "Added to watched movies." : "Moved back to your watchlist.");
 }
-async function saveMovie(movie, groupId) {
+async function saveMovie(movie, groupId, note = "") {
+  note = note.trim();
+  if (note.length > 500) throw new Error("Keep your note to 500 characters.");
   if (!groupId) throw new Error("Create a watchlist first.");
   const tmdbId = movie.id ? String(movie.id) : null;
   let existing = tmdbId
@@ -752,7 +822,12 @@ async function saveMovie(movie, groupId) {
   checked(
     await db
       .from("group_movies")
-      .insert({ movie_id: id, group_id: groupId, added_by: state.user.id }),
+      .insert({
+        movie_id: id,
+        group_id: groupId,
+        added_by: state.user.id,
+        suggestion_note: note,
+      }),
   );
   if (groupId === state.group?.group_id) await loadMovies();
 }
@@ -762,7 +837,7 @@ function manualAdd() {
     return;
   }
   openModal(
-    '<p class="eyebrow">Your own selection</p><h2>Add a movie manually</h2><form id="manual-form" class="form-panel"><label for="manual-title">Movie title</label><input id="manual-title" maxlength="200" required><button class="button full" style="margin-top:16px">Add to watchlist</button></form>',
+    '<p class="eyebrow">Your own selection</p><h2>Add a movie manually</h2><form id="manual-form" class="form-panel"><label for="manual-title">Movie title</label><input id="manual-title" maxlength="200" required><label for="manual-note">Suggestion note (optional)</label><textarea id="manual-note" maxlength="500" rows="3" placeholder="Why should we watch this?"></textarea><button class="button full" style="margin-top:16px">Add to watchlist</button></form>',
   );
   $("#manual-form").onsubmit = (e) => {
     e.preventDefault();
@@ -773,7 +848,7 @@ function manualAdd() {
         (m) => m.movies.title.toLowerCase() === title.toLowerCase(),
       );
       if (duplicate) throw new Error("This title is already on your list.");
-      await saveMovie({ title }, state.group.group_id);
+      await saveMovie({ title }, state.group.group_id, $("#manual-note").value);
       modal.close();
       render();
       toast("Movie added.");
@@ -838,7 +913,24 @@ function groups() {
   };
 }
 function profile() {
-  app.innerHTML = `<div class="profile"><p class="eyebrow">Your corner of the cinema</p><h1>Hey, movie lover.</h1><p class="subtitle">${esc(state.user.email)}</p><div class="form-panel"><h3>Your streaming services</h3><p class="muted">Save the services you have, then choose “My streaming services” in Discover.</p><form id="streaming-profile" class="streaming-profile"><div><label for="profile-region">Country</label><select id="profile-region"><option value="US">United States</option><option value="GB">United Kingdom</option><option value="CA">Canada</option><option value="AU">Australia</option></select></div><div id="profile-services"></div><button class="button" type="submit">Save streaming services</button></form></div><div class="form-panel"><h3>Movie Mojo, on your home screen</h3><p class="muted">On iPhone: open in Safari, tap Share, then Add to Home Screen. On Android: use your browser's Install app option.</p></div><div class="form-panel"><h3>Your current watchlist</h3><p class="muted">${esc(state.group?.group_name || "No watchlist selected")}</p>${state.group ? `<button id="leave-group" class="button danger">${state.group.created_by === state.user.id ? "Delete watchlist" : "Leave group"}</button>` : ""}</div><button class="button secondary" id="refresh-data">Refresh watchlists</button><button class="button secondary" id="logout">Sign out</button><p class="muted">Movie information provided by TMDB. Streaming availability provided by JustWatch via TMDB. This product uses the TMDB API but is not endorsed or certified by TMDB.</p></div>`;
+  app.innerHTML = `<div class="profile"><p class="eyebrow">Your corner of the cinema</p><h1>Hey, movie lover.</h1><p class="subtitle">${esc(state.user.email)}</p><div class="form-panel"><h3>Your name</h3><p class="muted">Shown to your groups when you suggest a movie.</p><form id="display-name-form"><input id="display-name" aria-label="Your display name" maxlength="60" value="${esc(state.displayName)}" placeholder="What should your friends call you?" required><button class="button" type="submit">Save name</button></form></div><div class="form-panel"><h3>Your streaming services</h3><p class="muted">Save the services you have, then choose “My streaming services” in Discover.</p><form id="streaming-profile" class="streaming-profile"><div><label for="profile-region">Country</label><select id="profile-region"><option value="US">United States</option><option value="GB">United Kingdom</option><option value="CA">Canada</option><option value="AU">Australia</option></select></div><div id="profile-services"></div><button class="button" type="submit">Save streaming services</button></form></div><div class="form-panel"><h3>Movie Mojo, on your home screen</h3><p class="muted">On iPhone: open in Safari, tap Share, then Add to Home Screen. On Android: use your browser's Install app option.</p></div><div class="form-panel"><h3>Your current watchlist</h3><p class="muted">${esc(state.group?.group_name || "No watchlist selected")}</p>${state.group ? `<button id="leave-group" class="button danger">${state.group.created_by === state.user.id ? "Delete watchlist" : "Leave group"}</button>` : ""}</div><button class="button secondary" id="refresh-data">Refresh watchlists</button><button class="button secondary" id="logout">Sign out</button><p class="muted">Movie information provided by TMDB. Streaming availability provided by JustWatch via TMDB. This product uses the TMDB API but is not endorsed or certified by TMDB.</p></div>`;
+  $("#display-name-form").onsubmit = (e) => {
+    e.preventDefault();
+    run($("#display-name-form button"), async () => {
+      const name = $("#display-name").value.trim();
+      if (!name) throw new Error("Enter your name.");
+      const rows = checked(
+        await db
+          .from("user_profiles")
+          .update({ display_name: name })
+          .eq("id", state.user.id)
+          .select("id"),
+      );
+      if (!rows.length) throw new Error("Could not save your name.");
+      state.displayName = name;
+      toast("Name saved.");
+    });
+  };
   $("#profile-region").value = state.streamingRegion;
   loadProviders(
     state.streamingRegion,
@@ -928,6 +1020,8 @@ async function initialize(user) {
   $("#navigation").hidden = true;
   if (!user) {
     state.approved = false;
+    state.displayName = "";
+    state.contributors = {};
     state.streamingServices = [];
     state.streamingRegion = "US";
     state.filters = {};
@@ -939,12 +1033,13 @@ async function initialize(user) {
     const profile = checked(
       await db
         .from("user_profiles")
-        .select("approved, streaming_services, streaming_region")
+        .select("approved, streaming_services, streaming_region, display_name")
         .eq("id", user.id)
         .maybeSingle(),
     );
     if (version !== authVersion) return;
     state.approved = !!profile?.approved;
+    state.displayName = profile?.display_name || "";
     state.streamingServices = profile?.streaming_services || [];
     state.streamingRegion = profile?.streaming_region || "US";
     if (state.approved) await loadGroups();

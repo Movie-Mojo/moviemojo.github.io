@@ -17,6 +17,8 @@ const fixture = {
   movies: [
     {
       id: "list1",
+      added_by: "11111111-1111-1111-1111-111111111111",
+      suggestion_note: "A great <movie> to discuss",
       watched: false,
       movies: {
         id: "m1",
@@ -79,11 +81,26 @@ const fixture = {
               ),
             signOut: async () => ({ error: null }),
           },
-          rpc: async (name, args) => ({
-            data:
-              name === "get_user_groups_with_counts" ? fixture.groups : null,
-            error: null,
-          }),
+          rpc: async (name, args) => {
+            if (name === "mojo_set_suggestion_note")
+              fixture.movies.find(
+                (m) => m.id === args.target_entry,
+              ).suggestion_note = args.note;
+            return {
+              data:
+                name === "get_user_groups_with_counts"
+                  ? fixture.groups
+                  : name === "mojo_group_contributors"
+                    ? [
+                        {
+                          user_id: fixture.user.id,
+                          display_name: fixture.displayName || "Friend",
+                        },
+                      ]
+                    : null,
+              error: null,
+            };
+          },
           from: (table) => {
             const chain = {
               select() {
@@ -104,6 +121,7 @@ const fixture = {
                     approved: true,
                     streaming_services: fixture.services || [],
                     streaming_region: "US",
+                    display_name: fixture.displayName || "Friend",
                   },
                   error: null,
                 });
@@ -112,9 +130,12 @@ const fixture = {
                 return Promise.resolve({ data: { id: "saved" }, error: null });
               },
               update(value) {
-                if (table === "user_profiles")
-                  fixture.services = value.streaming_services;
-                else fixture.movies[0].watched = value.watched;
+                if (table === "user_profiles") {
+                  if (value.streaming_services)
+                    fixture.services = value.streaming_services;
+                  if (value.display_name)
+                    fixture.displayName = value.display_name;
+                } else fixture.movies[0].watched = value.watched;
                 chain.changed = true;
                 return chain;
               },
@@ -207,6 +228,19 @@ const fixture = {
     ),
   );
   await page.screenshot({ path: "/tmp/mojo-watchlist.png", fullPage: true });
+  assert(
+    await page
+      .locator(".added-by")
+      .first()
+      .textContent()
+      .then((t) => t.includes("Friend")),
+  );
+  await page.locator(".movie-card").first().click();
+  await page.locator("#edit-note").fill("Movie night favorite!");
+  await page.locator("#note-form button").click();
+  await page.waitForFunction(
+    () => testData.movies[0].suggestion_note === "Movie night favorite!",
+  );
   await page.locator("#pick").click();
   assert(
     !(await page
@@ -219,6 +253,9 @@ const fixture = {
     () => document.querySelectorAll(".movie-card").length === 1,
   );
   await page.locator("[data-tab=profile]").click();
+  await page.locator("#display-name").fill("Alex");
+  await page.locator("#display-name-form button").click();
+  await page.waitForFunction(() => testData.displayName === "Alex");
   await page.locator("#profile-services summary").click();
   assert.equal(
     await page
@@ -242,6 +279,20 @@ const fixture = {
   );
   await page.locator("[data-tab=discover]").click();
   await page.locator("#results .movie-card").waitFor();
+  await page.locator('[data-mood="0"]').click();
+  await page.waitForTimeout(200);
+  assert(
+    new URL(
+      urls.filter((u) => u.includes("/discover/movie")).at(-1),
+    ).searchParams.get("with_genres") === "35",
+  );
+  await page.locator('[data-mood="4"]').click();
+  await page.waitForTimeout(200);
+  assert(
+    new URL(
+      urls.filter((u) => u.includes("/discover/movie")).at(-1),
+    ).searchParams.get("with_runtime.lte") === "90",
+  );
   await page.locator("#discovery-services summary").click();
   await page.locator("#use-my-services").check();
   await page.locator("#year-from").fill("2000");
