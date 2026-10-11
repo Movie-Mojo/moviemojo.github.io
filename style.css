@@ -1034,10 +1034,13 @@ textarea:focus {
 .movie-watchlist .suggestion { margin: 12px 0 0; padding: 0; border: 0; }
 
 .movie-card-wrap { position: relative; min-width: 0; }
-.movie-card-wrap .movie-card { width: 100%; height: 100%; -webkit-touch-callout: none; user-select: none; }
+.movie-card-wrap .movie-card { display: block; width: 100%; -webkit-touch-callout: none; user-select: none; }
 .movie-card-wrap .movie-card img { -webkit-user-drag: none; }
-.card-menu-button { position: absolute; right: 8px; top: 8px; width: 44px; height: 44px; padding: 10px; border: 1px solid #ffffff30; border-radius: 50%; background: #17151ee6; color: white; cursor: pointer; }
-.card-menu-button svg { width: 22px; height: 22px; fill: currentColor; }
+/* Keep the tap target generous while the visible control stays subtle. */
+.card-menu-button { position: absolute; right: 0; top: 0; display: grid; place-items: center; width: 44px; height: 44px; padding: 0; border: 0; background: transparent; color: #fff; cursor: pointer; }
+.card-menu-button::before { content: ""; position: absolute; width: 26px; height: 26px; border-radius: 7px; background: #10101699; transition: background .15s; }
+.card-menu-button svg { position: relative; width: 18px; height: 18px; fill: currentColor; }
+.card-menu-button:hover::before, .card-menu-button:focus-visible::before { background: #101016e6; }
 .quick-movie-actions { display: grid; gap: 12px; margin-top: 20px; }
 .quick-movie-actions .button, .quick-movie-actions select { margin: 0; }
 .quick-transfer { display: flex; gap: 10px; }
