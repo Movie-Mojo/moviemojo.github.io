@@ -821,3 +821,19 @@ textarea:focus {
 .suggestion form .button {
   justify-self: start;
 }
+
+@media (max-width: 600px) {
+  nav {
+    gap: 0;
+    justify-content: space-around;
+  }
+  nav button {
+    min-width: 0;
+    flex: 1;
+  }
+}
+#direct-invite {
+  display: grid;
+  gap: 12px;
+  margin-bottom: 24px;
+}

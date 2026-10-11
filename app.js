@@ -168,6 +168,7 @@ function render() {
       watchlist: watchlist,
       discover: discover,
       groups: groups,
+      friends: friends,
       profile: profile,
     })[state.tab] || watchlist
   )();
@@ -187,7 +188,7 @@ $("#account-button").onclick = () => {
 window.addEventListener("hashchange", () => {
   const tab = location.hash.slice(1);
   if (
-    ["watchlist", "discover", "groups", "profile"].includes(tab) &&
+    ["watchlist", "discover", "groups", "friends", "profile"].includes(tab) &&
     tab !== state.tab
   ) {
     state.tab = tab;
@@ -207,13 +208,14 @@ function auth(signup = false) {
       };
       checked(
         signup
-          ? await db.auth.signUp({ ...credentials, options: { emailRedirectTo: location.origin + location.pathname } })
+          ? await db.auth.signUp({
+              ...credentials,
+              options: { emailRedirectTo: location.origin + location.pathname },
+            })
           : await db.auth.signInWithPassword(credentials),
       );
       if (signup)
-        toast(
-          "Check your email and confirm your address to start watching.",
-        );
+        toast("Check your email and confirm your address to start watching.");
     });
   };
   if (!signup)
@@ -820,14 +822,12 @@ async function saveMovie(movie, groupId, note = "") {
   if (duplicate.length)
     throw new Error("This movie is already on that watchlist.");
   checked(
-    await db
-      .from("group_movies")
-      .insert({
-        movie_id: id,
-        group_id: groupId,
-        added_by: state.user.id,
-        suggestion_note: note,
-      }),
+    await db.from("group_movies").insert({
+      movie_id: id,
+      group_id: groupId,
+      added_by: state.user.id,
+      suggestion_note: note,
+    }),
   );
   if (groupId === state.group?.group_id) await loadMovies();
 }
@@ -855,6 +855,63 @@ function manualAdd() {
     });
   };
 }
+async function social(action = "list", target = null, gid = null) {
+  return checked(await db.rpc("mojo_social", { action, target, gid }));
+}
+async function friends() {
+  app.innerHTML =
+    '<p class="eyebrow">Your movie people</p><h1>Friends.</h1><p class="muted">Loading friends…</p>';
+  try {
+    const data = await social();
+    if (state.tab !== "friends") return;
+    app.innerHTML = `<p class="eyebrow">Your movie people</p><h1>Friends.</h1><p class="subtitle">Find your people. Plan your next movie night.</p><div class="form-panel"><h3>Your friend code</h3><p class="muted">Share this with a friend. Set your display name in Profile so they recognize you.</p><input readonly value="${state.user.id}" aria-label="Your friend code"><button id="copy-friend" class="button secondary">Copy friend code</button></div><div class="form-panel"><h3>Add a friend</h3><form id="friend-request"><input id="friend-code" placeholder="Paste their friend code" required aria-label="Friend code"><button class="button">Send request</button></form></div><h2>Group invitations</h2>${data.invitations.map((i) => `<div class="form-panel"><h3>${esc(i.group)}</h3><p>${esc(i.sender)} invited you</p><button class="button" data-social="join" data-target="${i.id}">Accept invitation</button><button class="button secondary" data-social="decline" data-target="${i.id}">Decline</button></div>`).join("") || '<p class="muted">No pending group invitations.</p>'}<h2>Your friends & requests</h2>${data.friends.map((f) => `<div class="form-panel"><h3>${esc(f.name)}</h3>${f.accepted ? '<p class="muted">Friends</p>' : `<p class="muted">${f.incoming ? "Wants to be your friend" : "Request sent"}</p>`}${!f.accepted && f.incoming ? `<button class="button" data-social="accept" data-target="${f.id}">Accept request</button>` : ""}<button class="button secondary" data-social="remove" data-target="${f.id}">${f.accepted ? "Remove friend" : f.incoming ? "Decline request" : "Cancel request"}</button></div>`).join("") || '<p class="muted">Add your first movie friend above.</p>'}<button id="refresh-friends" class="button secondary">Refresh friends</button>`;
+    $("#copy-friend").onclick = (e) =>
+      run(e.currentTarget, async () => {
+        await navigator.clipboard.writeText(state.user.id);
+        toast("Friend code copied.");
+      });
+    $("#refresh-friends").onclick = () => friends();
+    $("#friend-request").onsubmit = (e) => {
+      e.preventDefault();
+      run($("#friend-request button"), async () => {
+        await social("request", $("#friend-code").value.trim());
+        await friends();
+        toast("Friend request sent.");
+      });
+    };
+    app.querySelectorAll("[data-social]").forEach(
+      (b) =>
+        (b.onclick = () =>
+          run(b, async () => {
+            await social(b.dataset.social, b.dataset.target);
+            if (b.dataset.social === "join") await loadGroups();
+            await friends();
+            toast("Updated.");
+          })),
+    );
+  } catch (e) {
+    if (state.tab === "friends")
+      app.innerHTML = empty(
+        "Could not load friends",
+        e.message,
+        '<button id="retry-friends" class="button">Try again</button>',
+      );
+    if ($("#retry-friends")) $("#retry-friends").onclick = () => friends();
+  }
+}
+async function inviteFriends(groupId) {
+  const data = await social();
+  const list = data.friends.filter((f) => f.accepted);
+  const area = $("#direct-invite");
+  if (!area) return;
+  area.innerHTML = `<h3>Invite a friend</h3>${list.length ? `<select id="invite-friend" aria-label="Friend to invite">${list.map((f) => `<option value="${f.id}">${esc(f.name)}</option>`).join("")}</select><button id="send-direct-invite" class="button">Send invitation</button>` : '<p class="muted">Add friends from the Friends tab to invite them directly.</p>'}`;
+  if ($("#send-direct-invite"))
+    $("#send-direct-invite").onclick = (e) =>
+      run(e.currentTarget, async () => {
+        await social("invite", $("#invite-friend").value, groupId);
+        toast("Invitation sent. Your friend can accept it in Friends.");
+      });
+}
 function groups() {
   app.innerHTML = `<p class="eyebrow">Better together</p><h1>Your movie circles.</h1><p class="subtitle">A list for your friends. A list for yourself. A place for every movie night.</p>${state.groups.map((g) => `<div class="group-card"><button class="group-open" data-group="${g.group_id}"><h3>${esc(g.group_name)}</h3><p class="muted">${g.member_count === 1 ? "Your own watchlist" : g.member_count + " people"} · Open watchlist →</p></button><button class="button secondary" data-invite="${g.group_id}">Invite</button></div>`).join("") || empty("Start your first circle.", "Create a list below, then invite your friends whenever you like.")}<div class="form-panel"><h3>Create a watchlist</h3><p class="muted">Keep it personal or share it with friends.</p><form id="create-group"><input id="group-name" placeholder="Friday night crew" maxlength="100" aria-label="Watchlist name" required><button class="button">Create →</button></form></div><div class="form-panel"><h3>Have an invite?</h3><p class="muted">Paste a group code to join your friends.</p><form id="join-group"><input id="group-code" placeholder="Group invite code" aria-label="Group invite code" required><button class="button secondary">Join group</button></form></div>`;
   app.querySelectorAll("[data-group]").forEach(
@@ -870,8 +927,9 @@ function groups() {
       (b.onclick = () => {
         const id = b.dataset.invite;
         openModal(
-          `<p class="eyebrow">Save a seat for your friends</p><h2>Invite to ${esc(state.groups.find((g) => g.group_id === id).group_name)}</h2><p class="muted">Friends need an email-verified account. Share this code so they can join from the Groups tab.</p><input readonly id="invite-code" aria-label="Invite code" value="${id}"><button class="button full" id="copy-code" style="margin-top:16px">Copy invite code</button>`,
+          `<p class="eyebrow">Save a seat for your friends</p><h2>Invite to ${esc(state.groups.find((g) => g.group_id === id).group_name)}</h2><p class="muted">Friends need an email-verified account. Share this code so they can join from the Groups tab.</p><div id="direct-invite"></div><input readonly id="invite-code" aria-label="Invite code" value="${id}"><button class="button full" id="copy-code" style="margin-top:16px">Copy invite code</button>`,
         );
+        inviteFriends(id).catch((e) => toast(e.message));
         $("#copy-code").onclick = (e) =>
           run(e.currentTarget, async () => {
             try {
@@ -1045,7 +1103,7 @@ async function initialize(user) {
     if (state.approved) await loadGroups();
     if (version !== authVersion) return;
     $("#navigation").hidden = !state.approved;
-    state.tab = ["watchlist", "discover", "groups", "profile"].includes(
+    state.tab = ["watchlist", "discover", "groups", "friends", "profile"].includes(
       location.hash.slice(1),
     )
       ? location.hash.slice(1)
