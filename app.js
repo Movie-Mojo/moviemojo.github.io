@@ -284,7 +284,7 @@ function select(name, label, options) {
   return `<div><label for="${name}">${label}</label><select id="${name}" name="${name}">${options.map(([v, l]) => `<option value="${v}" ${String(state.filters[name] || "") === String(v) ? "selected" : ""}>${l}</option>`).join("")}</select></div>`;
 }
 function discover() {
-  app.innerHTML = `<p class="eyebrow">A little inspiration</p><h1>Find your next favorite.</h1><p class="subtitle">Follow a mood. Explore a genre. See what catches your eye.</p><form id="search-form" class="search-row"><input name="query" id="query" type="search" placeholder="Search movie titles…" aria-label="Movie title" value="${esc(state.query)}"><button class="button" type="submit">Search</button></form><details class="filters" ${state.mode === "discover" ? "open" : ""}><summary>Browse by filters</summary><form id="filter-form"><p class="muted">Filters browse the movie catalog. Title search runs separately.</p><div class="filter-grid">${select("with_genres", "Genre", [["", "All genres"], ...genres])}<fieldset class="release-years"><legend>Release year</legend><div class="year-range"><div><label for="year-from">From</label><input id="year-from" name="yearFrom" type="number" min="1874" max="2100" placeholder="1990" inputmode="numeric" value="${esc(state.filters.yearFrom || "")}"></div><span aria-hidden="true">–</span><div><label for="year-to">To</label><input id="year-to" name="yearTo" type="number" min="1874" max="2100" placeholder="Any year" inputmode="numeric" value="${esc(state.filters.yearTo || "")}"></div></div></fieldset>${select(
+  app.innerHTML = `<p class="eyebrow">A little inspiration</p><h1>Find your next favorite.</h1><p class="subtitle">Follow a mood. Explore a genre. See what catches your eye.</p><form id="search-form" class="search-row"><input name="query" id="query" type="search" placeholder="Search movie titles…" aria-label="Movie title" value="${esc(state.query)}"><button class="button" type="submit">Search</button></form><details class="filters" ${state.mode === "discover" ? "open" : ""}><summary>Browse by filters</summary><form id="filter-form"><p class="muted">Filters browse the movie catalog. Title search runs separately.</p><div class="filter-grid">${select("with_genres", "Genre", [["", "All genres"], ...genres])}<fieldset class="release-years"><legend>Release year</legend><div class="year-range"><div><label for="year-from">From</label><input id="year-from" name="yearFrom" type="number" min="1874" max="2100" placeholder="Any" inputmode="numeric" value="${esc(state.filters.yearFrom || "")}"></div><span aria-hidden="true">–</span><div><label for="year-to">To</label><input id="year-to" name="yearTo" type="number" min="1874" max="2100" placeholder="Any" inputmode="numeric" value="${esc(state.filters.yearTo || "")}"></div></div></fieldset>${select(
     "vote_average.gte",
     "Minimum audience score",
     [
@@ -379,6 +379,80 @@ function discover() {
   if (state.results.length) renderResults();
   else fetchDiscover();
 }
+// Major service families. Plan and channel variants share one selection.
+const serviceFamilies = [
+  ["Netflix", /^netflix\b/i],
+  ["Amazon Prime Video", /^(amazon )?prime video\b/i],
+  ["Disney+", /^disney(\+| plus)/i],
+  ["Hulu", /^hulu\b/i],
+  ["HBO Max", /^(hbo max|hbo|\bmax\b)/i],
+  ["Apple TV+", /^apple tv (plus|\+)|^apple tv\+|^apple tv$/i],
+  ["Paramount+", /^paramount(\+| plus)/i],
+  ["Peacock", /^peacock\b/i],
+  ["Tubi", /^tubi\b/i],
+  ["The Roku Channel", /^(the )?roku channel\b/i],
+  ["Pluto TV", /^pluto tv\b/i],
+  ["Discovery+", /^discovery(\+| plus)/i],
+  ["Starz", /^starz(play)?\b/i],
+  ["Showtime", /^showtime\b/i],
+  ["AMC+", /^amc(\+| plus)/i],
+  ["BritBox", /^britbox\b/i],
+  ["Acorn TV", /^acorn tv\b/i],
+  ["Criterion Channel", /^(the )?criterion channel\b/i],
+  ["MUBI", /^mubi\b/i],
+  ["Shudder", /^shudder\b/i],
+  ["Crunchyroll", /^crunchyroll\b/i],
+  ["MGM+", /^(mgm(\+| plus)|epix)\b|^mgm\+/i],
+  ["PBS", /^pbs\b/i],
+  ["Hallmark+", /^hallmark\b/i],
+  ["CuriosityStream", /^curiosity\s?stream\b/i],
+  ["NOW", /^now( tv| cinema| entertainment)?$/i],
+  ["ITVX", /^itvx\b/i],
+  ["BBC iPlayer", /^bbc iplayer\b/i],
+  ["Channel 4", /^(channel 4|all 4)\b/i],
+  ["BFI Player", /^bfi player\b/i],
+  ["Stan", /^stan\b/i],
+  ["Crave", /^crave\b/i],
+];
+function groupedProviders(providers) {
+  return serviceFamilies
+    .map(([name, pattern]) => {
+      const variants = providers.filter((p) => pattern.test(p.provider_name));
+      if (!variants.length) return null;
+      const primary =
+        variants.find(
+          (p) => p.provider_name.toLowerCase() === name.toLowerCase(),
+        ) || variants[0];
+      return {
+        ...primary,
+        provider_name: name,
+        variantIds: variants.map((p) => p.provider_id),
+      };
+    })
+    .filter(Boolean)
+    .slice(0, 25);
+}
+async function providersForRegion(region) {
+  if (!providerCache.has(region)) {
+    const data = await tmdb("watch/providers/movie", {
+      watch_region: region === "all" ? "" : region,
+    });
+    providerCache.set(region, data.results);
+  }
+  return providerCache.get(region);
+}
+async function expandServiceIds(ids, region) {
+  if (!ids.length) return [];
+  const selected = new Set(ids.map(Number));
+  const providers = await providersForRegion("all");
+  // Keep existing saved IDs usable, and expand any recognized family.
+  for (const [, pattern] of serviceFamilies) {
+    const variants = providers.filter((p) => pattern.test(p.provider_name));
+    if (variants.some((p) => selected.has(p.provider_id)))
+      variants.forEach((p) => selected.add(p.provider_id));
+  }
+  return [...selected];
+}
 const providerCache = new Map();
 async function loadProviders(region, target, selected = [], useMy = false) {
   const host = $("#" + target);
@@ -388,20 +462,23 @@ async function loadProviders(region, target, selected = [], useMy = false) {
   host.innerHTML = '<p class="muted">Loading services…</p>';
   const isDiscovery = target === "discovery-services";
   try {
-    let providers = providerCache.get(region);
-    if (!providers) {
-      const data = await tmdb("watch/providers/movie", {
-        watch_region: region,
-      });
-      providers = data.results.sort(
-        (a, b) => (a.display_priority || 0) - (b.display_priority || 0),
-      );
-      providerCache.set(region, providers);
-    }
+    const providers = groupedProviders(await providersForRegion(region));
     if (!host.isConnected || host.requestToken !== token) return;
     const name = isDiscovery ? "discovery-provider" : "profile-provider";
     const selectedSet = new Set(selected.map(Number));
-    host.innerHTML = `<details class="service-picker"><summary><span class="service-summary">${isDiscovery ? "Any streaming service" : "Choose your services"}</span></summary><div class="service-options">${isDiscovery ? `<label class="service-option my-services"><input id="use-my-services" type="checkbox" ${useMy ? "checked" : ""}><span>My streaming services<small>${state.streamingServices.length ? state.streamingServices.length + " saved in Profile" : "Add services in Profile first"}</small></span></label>` : ""}<input class="provider-search" type="search" placeholder="Find a service…" aria-label="Find a streaming service"><div class="provider-list-options">${providers.map((p) => `<label class="service-option" data-provider-name="${esc(p.provider_name.toLowerCase())}"><input type="checkbox" name="${name}" value="${p.provider_id}" ${selectedSet.has(p.provider_id) ? "checked" : ""}>${p.logo_path ? `<img src="${image(p.logo_path)}" alt="" loading="lazy">` : ""}<span>${esc(p.provider_name)}</span></label>`).join("")}</div><p class="provider-empty muted" hidden>No services match that name.</p></div></details>`;
+    const catalog = await providersForRegion("all");
+    if (!host.isConnected || host.requestToken !== token) return;
+    const selectedFamilies = new Set(
+      serviceFamilies
+        .filter(([, pattern]) =>
+          catalog.some(
+            (p) =>
+              selectedSet.has(p.provider_id) && pattern.test(p.provider_name),
+          ),
+        )
+        .map(([name]) => name),
+    );
+    host.innerHTML = `<details class="service-picker"><summary><span class="service-summary">${isDiscovery ? "Any streaming service" : "Choose your services"}</span></summary><div class="service-options">${isDiscovery ? `<label class="service-option my-services"><input id="use-my-services" type="checkbox" ${useMy ? "checked" : ""}><span>My streaming services<small>${state.streamingServices.length ? state.streamingServices.length + " saved in Profile" : "Add services in Profile first"}</small></span></label>` : ""}<input class="provider-search" type="search" placeholder="Find a service…" aria-label="Find a streaming service"><div class="provider-list-options">${providers.map((p) => `<label class="service-option" data-provider-name="${esc(p.provider_name.toLowerCase())}"><input type="checkbox" name="${name}" value="${p.provider_id}" ${p.variantIds.some((id) => selectedSet.has(id)) || selectedFamilies.has(p.provider_name) ? "checked" : ""}>${p.logo_path ? `<img src="${image(p.logo_path)}" alt="" loading="lazy">` : ""}<span>${esc(p.provider_name)}</span></label>`).join("")}</div><p class="provider-empty muted" hidden>No services match that name.</p></div></details>`;
     const updateSummary = () => {
       const count = host.querySelectorAll(
         `input[name="${name}"]:checked`,
@@ -457,12 +534,19 @@ async function fetchDiscover(append = false) {
       throw new Error(
         "Add streaming services in Profile, or turn off My streaming services.",
       );
-    const providerIds = [
+    const selectedServiceIds = [
       ...new Set([
         ...(f.providerIds || []),
         ...(f.useMyServices ? state.streamingServices : []),
       ]),
     ];
+    const providerIds =
+      state.mode === "search"
+        ? []
+        : await expandServiceIds(
+            selectedServiceIds,
+            f.watch_region || state.streamingRegion,
+          );
     const params =
       state.mode === "search"
         ? { query: state.query }
@@ -475,7 +559,9 @@ async function fetchDiscover(append = false) {
               ? `${f.yearTo}-12-31`
               : new Date().toISOString().slice(0, 10),
             with_watch_providers: providerIds.join("|"),
-            with_watch_monetization_types: providerIds.length ? "flatrate" : "",
+            with_watch_monetization_types: providerIds.length
+              ? "flatrate|free|ads"
+              : "",
             watch_region: f.watch_region || state.streamingRegion,
           };
     for (const key of [
