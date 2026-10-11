@@ -837,3 +837,12 @@ textarea:focus {
   gap: 12px;
   margin-bottom: 24px;
 }
+
+.group-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.group-buttons .button {
+  padding: 10px 12px;
+}

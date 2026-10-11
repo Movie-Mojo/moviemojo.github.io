@@ -912,8 +912,43 @@ async function inviteFriends(groupId) {
         toast("Invitation sent. Your friend can accept it in Friends.");
       });
 }
+async function groupPeople(id) {
+  const [people, data] = await Promise.all([
+    db.rpc("mojo_group_people", { target_group: id }).then(checked),
+    social(),
+  ]);
+  const group = state.groups.find((g) => g.group_id === id);
+  openModal(
+    `<p class="eyebrow">Your movie circle</p><h2>${esc(group?.group_name || "Group")} members</h2><div id="group-people">${people
+      .map((p) => {
+        const f = data.friends.find((f) => f.id === p.id);
+        return `<div class="form-panel"><h3>${esc(p.id === state.user.id ? state.displayName || "You" : p.name)}${p.id === state.user.id ? " · You" : ""}</h3>${p.owner ? '<p class="muted">Group creator</p>' : ""}${p.id === state.user.id ? "" : f?.accepted ? '<p class="muted">Friends ✓</p>' : f ? (f.incoming ? `<button class="button" data-member-action="accept" data-person="${p.id}">Accept friend request</button>` : '<p class="muted">Friend request sent</p>') : `<button class="button secondary" data-member-action="request" data-person="${p.id}">Add friend</button>`}</div>`;
+      })
+      .join("")}</div>`,
+  );
+  $("#group-people")
+    .querySelectorAll("[data-member-action]")
+    .forEach(
+      (b) =>
+        (b.onclick = () =>
+          run(b, async () => {
+            await social(b.dataset.memberAction, b.dataset.person);
+            await groupPeople(id);
+            toast(
+              b.dataset.memberAction === "accept"
+                ? "Friend request accepted."
+                : "Friend request sent.",
+            );
+          })),
+    );
+}
 function groups() {
-  app.innerHTML = `<p class="eyebrow">Better together</p><h1>Your movie circles.</h1><p class="subtitle">A list for your friends. A list for yourself. A place for every movie night.</p>${state.groups.map((g) => `<div class="group-card"><button class="group-open" data-group="${g.group_id}"><h3>${esc(g.group_name)}</h3><p class="muted">${g.member_count === 1 ? "Your own watchlist" : g.member_count + " people"} · Open watchlist →</p></button><button class="button secondary" data-invite="${g.group_id}">Invite</button></div>`).join("") || empty("Start your first circle.", "Create a list below, then invite your friends whenever you like.")}<div class="form-panel"><h3>Create a watchlist</h3><p class="muted">Keep it personal or share it with friends.</p><form id="create-group"><input id="group-name" placeholder="Friday night crew" maxlength="100" aria-label="Watchlist name" required><button class="button">Create →</button></form></div><div class="form-panel"><h3>Have an invite?</h3><p class="muted">Paste a group code to join your friends.</p><form id="join-group"><input id="group-code" placeholder="Group invite code" aria-label="Group invite code" required><button class="button secondary">Join group</button></form></div>`;
+  app.innerHTML = `<p class="eyebrow">Better together</p><h1>Your movie circles.</h1><p class="subtitle">A list for your friends. A list for yourself. A place for every movie night.</p>${state.groups.map((g) => `<div class="group-card"><button class="group-open" data-group="${g.group_id}"><h3>${esc(g.group_name)}</h3><p class="muted">${g.member_count === 1 ? "Your own watchlist" : g.member_count + " people"} · Open watchlist →</p></button><div class="group-buttons"><button class="button secondary" data-members="${g.group_id}">Members</button><button class="button secondary" data-invite="${g.group_id}">Invite</button></div></div>`).join("") || empty("Start your first circle.", "Create a list below, then invite your friends whenever you like.")}<div class="form-panel"><h3>Create a watchlist</h3><p class="muted">Keep it personal or share it with friends.</p><form id="create-group"><input id="group-name" placeholder="Friday night crew" maxlength="100" aria-label="Watchlist name" required><button class="button">Create →</button></form></div><div class="form-panel"><h3>Have an invite?</h3><p class="muted">Paste a group code to join your friends.</p><form id="join-group"><input id="group-code" placeholder="Group invite code" aria-label="Group invite code" required><button class="button secondary">Join group</button></form></div>`;
+  app
+    .querySelectorAll("[data-members]")
+    .forEach(
+      (b) => (b.onclick = () => run(b, () => groupPeople(b.dataset.members))),
+    );
   app.querySelectorAll("[data-group]").forEach(
     (b) =>
       (b.onclick = () =>
@@ -1103,9 +1138,13 @@ async function initialize(user) {
     if (state.approved) await loadGroups();
     if (version !== authVersion) return;
     $("#navigation").hidden = !state.approved;
-    state.tab = ["watchlist", "discover", "groups", "friends", "profile"].includes(
-      location.hash.slice(1),
-    )
+    state.tab = [
+      "watchlist",
+      "discover",
+      "groups",
+      "friends",
+      "profile",
+    ].includes(location.hash.slice(1))
       ? location.hash.slice(1)
       : "watchlist";
     render();
