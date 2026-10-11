@@ -701,7 +701,7 @@ const fixture = {
   assert(await page.locator(".scroll-pending").count()>0,"below-fold rows must wait for scroll");
   const pending = page.locator(".scroll-pending").first();
   await pending.evaluate(el=>el.scrollIntoView({block:"center"}));
-  await page.waitForFunction(() => [...document.querySelectorAll(".grid > *")].some(el => el.getAnimations().some(a=>a.effect.getTiming().duration===650)), null, {timeout:3000});
+  await page.waitForFunction(() => [...document.querySelectorAll(".grid > *")].some(el => el.getAnimations().some(a=>a.effect.getTiming().duration===900)), null, {timeout:3000});
   assert.equal(errors.length, 0, errors.join("\n"));
   console.log(
     "PASS: mobile overflow, watchlist separation, picker excludes watched, mark watched, saved/reloaded streaming profiles, multi-select and My services filters, provider search, year ranges, title search, details, invites, desktop layout, no JS errors.",
