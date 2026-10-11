@@ -1148,7 +1148,27 @@ async function groupPeople(id) {
     );
 }
 function groups() {
-  app.innerHTML = `<p class="eyebrow">Better together</p><h1>Your movie circles.</h1><p class="subtitle">A list for your friends. A list for yourself. A place for every movie night.</p>${state.groups.map((g) => `<div class="group-card"><button class="group-open" data-group="${g.group_id}"><h3>${esc(g.group_name)}</h3><p class="muted">${g.member_count === 1 ? "Your own watchlist" : g.member_count + " people"} · Open watchlist →</p></button>${g.group_id === state.personalGroup ? '<p class="muted">Only you · Personal list</p>' : `<div class="group-buttons"><button class="button secondary" data-members="${g.group_id}">Members</button><button class="button secondary" data-invite="${g.group_id}">Invite</button></div>`}</div>`).join("") || empty("Start your first circle.", "Create a list below, then invite your friends whenever you like.")}<div class="form-panel"><h3>Create a watchlist</h3><p class="muted">Keep it personal or share it with friends.</p><form id="create-group"><input id="group-name" placeholder="Friday night crew" maxlength="100" aria-label="Watchlist name" required><button class="button">Create →</button></form></div><div class="form-panel"><h3>Have an invite?</h3><p class="muted">Paste a group code to join your friends.</p><form id="join-group"><input id="group-code" placeholder="Group invite code" aria-label="Group invite code" required><button class="button secondary">Join group</button></form></div>`;
+  app.innerHTML = `<p class="eyebrow">Better together</p><h1>Your movie circles.</h1><p class="subtitle">A list for your friends. A list for yourself. A place for every movie night.</p>${state.groups.map((g) => `<div class="group-card"><button class="group-open" data-group="${g.group_id}"><h3>${esc(g.group_name)}</h3><p class="muted">${g.member_count === 1 ? "Your own watchlist" : g.member_count + " people"} · Open watchlist →</p></button>${g.group_id === state.personalGroup ? '<p class="muted">Only you · Personal list</p>' : `<div class="group-buttons"><button class="button secondary" data-members="${g.group_id}">Members</button><button class="button secondary" data-invite="${g.group_id}">Invite</button><button class="button danger" data-remove-group="${g.group_id}">${g.created_by === state.user.id ? "Delete watchlist" : "Leave group"}</button></div>`}</div>`).join("") || empty("Start your first circle.", "Create a list below, then invite your friends whenever you like.")}<div class="form-panel"><h3>Create a watchlist</h3><p class="muted">Keep it personal or share it with friends.</p><form id="create-group"><input id="group-name" placeholder="Friday night crew" maxlength="100" aria-label="Watchlist name" required><button class="button">Create →</button></form></div><div class="form-panel"><h3>Have an invite?</h3><p class="muted">Paste a group code to join your friends.</p><form id="join-group"><input id="group-code" placeholder="Group invite code" aria-label="Group invite code" required><button class="button secondary">Join group</button></form></div>`;
+  app.querySelectorAll("[data-remove-group]").forEach((button) => {
+    button.onclick = () => run(button, async () => {
+      const group = state.groups.find((g) => g.group_id === button.dataset.removeGroup);
+      if (!group || group.group_id === state.personalGroup) return;
+      const own = group.created_by === state.user.id;
+      if (!confirm(own
+        ? `Delete “${group.group_name}” and its group ratings permanently?`
+        : `Leave “${group.group_name}”?`)) return;
+      if (own) checked(await db.rpc("mojo_delete_group", { target_group: group.group_id }));
+      else {
+        const rows = checked(await db.from("group_members").delete()
+          .eq("group_id", group.group_id).eq("user_id", state.user.id).select("id"));
+        if (!rows.length) throw new Error("Could not leave the group.");
+      }
+      if (state.group?.group_id === group.group_id) state.group = null;
+      await loadGroups();
+      render();
+      toast(own ? "Watchlist deleted." : "You left the group.");
+    });
+  });
   app
     .querySelectorAll("[data-members]")
     .forEach(
@@ -1234,7 +1254,7 @@ function groups() {
   };
 }
 function profile() {
-  app.innerHTML = `<div class="profile"><p class="eyebrow">Your corner of the cinema</p><h1>Hey, movie lover.</h1><p class="subtitle">${esc(state.user.email)}</p><div class="form-panel"><h3>Your watched movies</h3><p class="muted">See your history and remove movies you missed.</p><button id="my-watched-history" class="button secondary">Manage watched history</button></div><div class="form-panel"><h3>Your name</h3><p class="muted">Shown to your groups when you suggest a movie.</p><form id="display-name-form"><input id="display-name" aria-label="Your display name" maxlength="60" value="${esc(state.displayName)}" placeholder="What should your friends call you?" required><button class="button" type="submit">Save name</button></form></div><div class="form-panel"><h3>Your streaming services</h3><p class="muted">Save the services you have, then choose “My streaming services” in Discover.</p><form id="streaming-profile" class="streaming-profile"><div><label for="profile-region">Country</label><select id="profile-region"><option value="US">United States</option><option value="GB">United Kingdom</option><option value="CA">Canada</option><option value="AU">Australia</option></select></div><div id="profile-services"></div><button class="button" type="submit">Save streaming services</button></form></div><div class="form-panel"><h3>Movie Mojo, on your home screen</h3><p class="muted">On iPhone: open in Safari, tap Share, then Add to Home Screen. On Android: use your browser's Install app option.</p></div><div class="form-panel"><h3>Your current watchlist</h3><p class="muted">${esc(state.group?.group_name || "No watchlist selected")}</p>${state.group && state.group.group_id !== state.personalGroup ? `<button id="leave-group" class="button danger">${state.group.created_by === state.user.id ? "Delete watchlist" : "Leave group"}</button>` : ""}</div><button class="button secondary" id="refresh-data">Refresh watchlists</button><button class="button secondary" id="logout">Sign out</button><p class="muted">Movie information provided by TMDB. Streaming availability provided by JustWatch via TMDB. This product uses the TMDB API but is not endorsed or certified by TMDB.</p></div>`;
+  app.innerHTML = `<div class="profile"><p class="eyebrow">Your corner of the cinema</p><h1>Hey, movie lover.</h1><p class="subtitle">${esc(state.user.email)}</p><div class="form-panel"><h3>Your watched movies</h3><p class="muted">See your history and remove movies you missed.</p><button id="my-watched-history" class="button secondary">Manage watched history</button></div><div class="form-panel"><h3>Your name</h3><p class="muted">Shown to your groups when you suggest a movie.</p><form id="display-name-form"><input id="display-name" aria-label="Your display name" maxlength="60" value="${esc(state.displayName)}" placeholder="What should your friends call you?" required><button class="button" type="submit">Save name</button></form></div><div class="form-panel"><h3>Your streaming services</h3><p class="muted">Save the services you have, then choose “My streaming services” in Discover.</p><form id="streaming-profile" class="streaming-profile"><div><label for="profile-region">Country</label><select id="profile-region"><option value="US">United States</option><option value="GB">United Kingdom</option><option value="CA">Canada</option><option value="AU">Australia</option></select></div><div id="profile-services"></div><button class="button" type="submit">Save streaming services</button></form></div><div class="form-panel"><h3>Movie Mojo, on your home screen</h3><p class="muted">On iPhone: open in Safari, tap Share, then Add to Home Screen. On Android: use your browser's Install app option.</p></div><div class="form-panel"><h3>Your watchlists</h3><p class="muted">Manage all your lists and movie groups in one place.</p><button id="manage-watchlists" class="button secondary">Manage watchlists →</button></div><button class="button secondary" id="refresh-data">Refresh watchlists</button><button class="button secondary" id="logout">Sign out</button><p class="muted">Movie information provided by TMDB. Streaming availability provided by JustWatch via TMDB. This product uses the TMDB API but is not endorsed or certified by TMDB.</p></div>`;
   $("#my-watched-history").onclick = (e) =>
     run(e.currentTarget, () => watchedProfile(state.user.id));
   $("#display-name-form").onsubmit = (e) => {
@@ -1293,40 +1313,7 @@ function profile() {
       render();
       toast("Watchlists refreshed.");
     });
-  if ($("#leave-group"))
-    $("#leave-group").onclick = (e) =>
-      run(e.currentTarget, async () => {
-        const own = state.group.created_by === state.user.id;
-        if (
-          !confirm(
-            own
-              ? "Delete this watchlist and its group ratings permanently?"
-              : "Leave this group?",
-          )
-        )
-          return;
-        if (own)
-          checked(
-            await db.rpc("mojo_delete_group", {
-              target_group: state.group.group_id,
-            }),
-          );
-        else {
-          const rows = checked(
-            await db
-              .from("group_members")
-              .delete()
-              .eq("group_id", state.group.group_id)
-              .eq("user_id", state.user.id)
-              .select("id"),
-          );
-          if (!rows.length) throw new Error("Could not leave the group.");
-        }
-        state.group = null;
-        await loadGroups();
-        go("groups");
-        toast(own ? "Watchlist deleted." : "You left the group.");
-      });
+  $("#manage-watchlists").onclick = () => go("groups");
 }
 async function logout() {
   await run($("#logout"), async () => {
