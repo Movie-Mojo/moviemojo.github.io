@@ -5,6 +5,9 @@ const { readFileSync } = require('node:fs');
  const { createHandler, movieURL } = await import('data:text/javascript;base64,' + Buffer.from(source).toString('base64'));
  assert.equal(movieURL({path:"trending/movie/week",params:{page:2}}).pathname,"/3/trending/movie/week");
  assert.throws(()=>movieURL({path:"trending/movie/week",params:{with_genres:"35"}}));
+ assert.equal(movieURL({path:"movies/metadata",params:{ids:"1,2"}}).pathname,"/3/movies/metadata");
+ assert.throws(()=>movieURL({path:"movies/metadata",params:{ids:Array.from({length:51},(_,i)=>i+1).join(",")}}));
+ assert.throws(()=>movieURL({path:"movies/metadata",params:{ids:"1/../../account"}}));
  let gateStatus=200, allowed=true, upstreamStatus=200, calls=[], clock=1000;
  const env = n => ({TMDB_API_KEY:'server-only-test-key',SUPABASE_URL:'https://database.test',SUPABASE_ANON_KEY:'public-test-key'})[n];
  const handler=createHandler({env, now:()=>clock, fetch:async (url,options)=>{
@@ -52,5 +55,18 @@ const { readFileSync } = require('node:fs');
  const all=await trending(request({path:'trending/movie/week',params:{page:2,include_availability:false}}));
  assert.equal(all.status,200);
  assert.equal(providerCalls,2,'All must skip availability requests');
+ let metadataGates=0;
+ const metadataHandler=createHandler({env,fetch:async url=>{
+   if(String(url).includes('/rpc/')) {++metadataGates;return Response.json(true);}
+   const id=Number(new URL(url).pathname.split('/').at(-1));
+   return Response.json({id,release_date:'2020-01-01',vote_average:8,vote_count:100,genres:[{name:'Drama'}],secret:'must-not-return'});
+ }});
+ const metadataResponse=await metadataHandler(request({path:'movies/metadata',params:{ids:'1,2'}}));
+ assert.equal(metadataResponse.status,200);
+ const metadataBody=await metadataResponse.json();
+ assert.equal(metadataBody.results.length,2);
+ assert.equal(metadataBody.results[0].genres[0].name,'Drama');
+ assert.equal(metadataBody.results[0].secret,undefined);
+ assert.equal(metadataGates,1,'metadata batch uses one quota check');
  console.log('PASS: proxy allowlist, bounded inputs, authentication gate, shared-limit responses, cache authorization/expiry, secret-free errors, fixed upstream host.');
 })().catch(e=>{console.error(e);process.exit(1)});
