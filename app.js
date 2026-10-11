@@ -1,5 +1,58 @@
 "use strict";
-const db = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const sessionKey = `sb-${new URL(SUPABASE_URL).hostname.split(".")[0]}-auth-token`;
+let sessionMemory = new Map();
+function stored(storage, key) {
+  try {
+    return storage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+let keepSignedIn =
+  stored(sessionStorage, "mojo-session-mode") === "tab"
+    ? false
+    : stored(localStorage, "mojo-session-mode") === "persistent" ||
+      !!stored(localStorage, sessionKey);
+const authStorage = {
+  getItem(key) {
+    return (
+      stored(keepSignedIn ? localStorage : sessionStorage, key) ||
+      sessionMemory.get(key) ||
+      null
+    );
+  },
+  setItem(key, value) {
+    try {
+      (keepSignedIn ? localStorage : sessionStorage).setItem(key, value);
+      sessionMemory.delete(key);
+    } catch {
+      sessionMemory.set(key, value);
+    }
+  },
+  removeItem(key) {
+    sessionMemory.delete(key);
+    for (const storage of [localStorage, sessionStorage])
+      try {
+        storage.removeItem(key);
+      } catch {}
+  },
+};
+function chooseSessionStorage(keep) {
+  keepSignedIn = keep;
+  try {
+    sessionStorage.setItem("mojo-session-mode", keep ? "persistent" : "tab");
+    localStorage.setItem("mojo-session-mode", keep ? "persistent" : "tab");
+  } catch {}
+}
+const db = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+  auth: {
+    storageKey: sessionKey,
+    storage: authStorage,
+    persistSession: true,
+    autoRefreshToken: true,
+    detectSessionInUrl: true,
+  },
+});
 const $ = (s, root = document) => root.querySelector(s);
 const app = $("#app"),
   modal = $("#modal");
@@ -254,7 +307,7 @@ async function handleInvite() {
 }
 function auth(signup = false) {
   $("#navigation").hidden = true;
-  app.innerHTML = `<section class="auth"><p class="eyebrow">Good movies. Better company.</p><h1>${signup ? "Join the movie night." : "Your next movie night starts here."}</h1><p class="subtitle">${pendingInvite() ? "You’ve been invited. Sign in or create an account and verify your email to join." : "Find something worth watching. Save it with your people."}</p><form id="auth-form"><div><label for="email">Email address</label><input id="email" type="email" autocomplete="email" required></div><div><label for="password">Password</label><input id="password" type="password" autocomplete="${signup ? "new-password" : "current-password"}" minlength="6" required></div><button class="button" type="submit">${signup ? "Create account" : "Sign in"} →</button></form><p class="auth-switch muted">${signup ? "Already have an account?" : "New to Movie Mojo?"} <button class="link-button" id="auth-switch">${signup ? "Sign in" : "Create account"}</button></p>${signup ? '<p class="muted">Verify your email to get started. Your watchlists stay private to their members.</p>' : '<button class="link-button" id="reset-password">Forgot password?</button>'}</section>`;
+  app.innerHTML = `<section class="auth"><p class="eyebrow">Good movies. Better company.</p><h1>${signup ? "Join the movie night." : "Your next movie night starts here."}</h1><p class="subtitle">${pendingInvite() ? "You’ve been invited. Sign in or create an account and verify your email to join." : "Find something worth watching. Save it with your people."}</p><form id="auth-form"><div><label for="email">Email address</label><input id="email" type="email" autocomplete="email" required></div><div><label for="password">Password</label><input id="password" type="password" autocomplete="${signup ? "new-password" : "current-password"}" minlength="6" required></div><label class="checkbox"><input id="keep-signed-in" type="checkbox" ${keepSignedIn ? "checked" : ""}> Keep me signed in on this device</label><p class="muted">Leave unchecked on shared devices. Unchecked sessions last for this browser tab; your browser may restore them when restoring tabs.</p><button class="button" type="submit">${signup ? "Create account" : "Sign in"} →</button></form><p class="auth-switch muted">${signup ? "Already have an account?" : "New to Movie Mojo?"} <button class="link-button" id="auth-switch">${signup ? "Sign in" : "Create account"}</button></p>${signup ? '<p class="muted">Verify your email to get started. Your watchlists stay private to their members.</p>' : '<button class="link-button" id="reset-password">Forgot password?</button>'}</section>`;
   $("#auth-switch").onclick = () => auth(!signup);
   $("#auth-form").onsubmit = (e) => {
     e.preventDefault();
@@ -263,6 +316,7 @@ function auth(signup = false) {
         email: $("#email").value.trim(),
         password: $("#password").value,
       };
+      chooseSessionStorage($("#keep-signed-in").checked);
       checked(
         signup
           ? await db.auth.signUp({
@@ -1078,7 +1132,7 @@ function groups() {
               try {
                 await navigator.share({
                   title: "Join my Movie Mojo group",
-                  text: `Join ${state.groups.find(g=>g.group_id===id)?.group_name || "my group"} on Movie Mojo: ${link}`,
+                  text: `Join ${state.groups.find((g) => g.group_id === id)?.group_name || "my group"} on Movie Mojo: ${link}`,
                   url: link,
                 });
               } catch (err) {
@@ -1227,7 +1281,7 @@ function profile() {
 }
 async function logout() {
   await run($("#logout"), async () => {
-    checked(await db.auth.signOut());
+    checked(await db.auth.signOut({ scope: "local" }));
     state.group = null;
     state.groups = [];
     state.movies = [];
