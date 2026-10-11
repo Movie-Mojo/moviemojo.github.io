@@ -417,12 +417,15 @@ function select(name, label, options) {
   return `<div><label for="${name}">${label}</label><select id="${name}" name="${name}">${options.map(([v, l]) => `<option value="${v}" ${String(state.filters[name] || "") === String(v) ? "selected" : ""}>${l}</option>`).join("")}</select></div>`;
 }
 const moodShortcuts = [
+  { label: "Recent Releases", description: "Released in the past year · newest first · at least 20 votes", filters: { recentRelease: true, "vote_count.gte": "20", "with_runtime.gte": "40", sort_by: "primary_release_date.desc" } },
+  { label: "Highly rated", description: "Rated 7.5+ with at least 500 votes · highest rated first", filters: { "vote_average.gte": "7.5", "vote_count.gte": "500", "with_runtime.gte": "40", sort_by: "vote_average.desc" } },
   { label: "Make me laugh", description: "Comedies rated 6+ · excludes horror", filters: { with_genres: "35", without_genres: "27", "vote_average.gte": "6", "with_runtime.gte": "40" } },
   { label: "Keep me guessing", description: "Mysteries and thrillers rated 6.5+", filters: { with_genres: "53|9648", "vote_average.gte": "6.5", "with_runtime.gte": "40" } },
   { label: "Family night", description: "Family and animated movies rated 6+ · excludes horror · check age ratings before watching", filters: { with_genres: "10751|16", without_genres: "27", "vote_average.gte": "6", "with_runtime.gte": "40" } },
   { label: "Out of this world", description: "Science fiction and fantasy rated 6.5+", filters: { with_genres: "878|14", "vote_average.gte": "6.5", "with_runtime.gte": "40" } },
   { label: "Under 90 minutes", description: "Feature-length movies from 40–90 minutes, rated 6+", filters: { "with_runtime.gte": "40", "with_runtime.lte": "90", "vote_average.gte": "6" } },
-  { label: "Highly rated", description: "Rated 7.5+ with at least 500 votes · highest rated first", filters: { "vote_average.gte": "7.5", "vote_count.gte": "500", "with_runtime.gte": "40", sort_by: "vote_average.desc" } },
+  { label: "Scary movies", description: "Horror movies rated 6+", filters: { with_genres: "27", "vote_average.gte": "6", "with_runtime.gte": "40" } },
+  { label: "Action", description: "Action movies rated 6.5+", filters: { with_genres: "28", "vote_average.gte": "6.5", "with_runtime.gte": "40" } },
 ];
 function updateMoodControls() {
   const mood = moodShortcuts.find((m) => m.label === state.filters.mood);
@@ -783,7 +786,9 @@ async function fetchDiscover(append = false) {
             ...f,
             sort_by: f.sort_by || "popularity.desc",
             "vote_count.gte": f["vote_count.gte"] || 100,
-            "primary_release_date.gte": f.yearFrom ? `${f.yearFrom}-01-01` : "",
+            "primary_release_date.gte": f.recentRelease
+              ? new Date(Date.now() - 365 * 86400000).toISOString().slice(0, 10)
+              : f.yearFrom ? `${f.yearFrom}-01-01` : "",
             "primary_release_date.lte": f.yearTo
               ? `${f.yearTo}-12-31`
               : new Date().toISOString().slice(0, 10),
@@ -800,6 +805,7 @@ async function fetchDiscover(append = false) {
       "yearFrom",
       "yearTo",
       "mood",
+      "recentRelease",
     ])
       delete params[key];
     const data = await tmdb(
