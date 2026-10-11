@@ -1074,7 +1074,7 @@ textarea:focus {
 .availability-switch:has([data-availability="buy-rent"][aria-pressed="true"])::before { transform: translateX(calc(100% + 4px)); }
 .availability-switch:has([data-availability="all"][aria-pressed="true"])::before { transform: translateX(calc(200% + 8px)); }
 @media (prefers-reduced-motion: no-preference) {
-  .availability-switch::before { transition: transform 240ms cubic-bezier(.2,.7,.2,1); }
+  .availability-switch::before { transition: transform 360ms cubic-bezier(.2,.7,.2,1); }
 }
 /* The same compact corner control is visible at every screen size. */
 .movie-card-wrap .card-menu-button { display: grid; }
@@ -1087,7 +1087,7 @@ textarea:focus {
 .pills::before { content: ""; position: absolute; top: 4px; bottom: 4px; left: 4px; width: calc((100% - 8px) / 2); border-radius: 9px; background: #302940; pointer-events: none; }
 .pills:has(#watched.active)::before { transform: translateX(100%); }
 .pills .pill { position: relative; z-index: 1; background: transparent; }
-@media (prefers-reduced-motion: no-preference) { .pills::before { transition: transform 480ms cubic-bezier(.4,0,.2,1); } }
+@media (prefers-reduced-motion: no-preference) { .pills::before { transition: transform 720ms cubic-bezier(.4,0,.2,1); } }
 
 @media (prefers-reduced-motion: no-preference) {
   .grid > .scroll-pending { opacity: 0; animation: none; }
