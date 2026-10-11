@@ -182,14 +182,14 @@ function revealScrollingCards() {
       for (const card of row) {
         card.classList.remove("scroll-pending");
         if (!matchMedia("(prefers-reduced-motion: reduce)").matches)
-          card.animate([{opacity:0,transform:"translateY(18px)"},{opacity:1,transform:"none"}], {duration:650,easing:"cubic-bezier(.2,.7,.2,1)"});
+          card.animate([{opacity:0,transform:"translateY(36px)"},{opacity:.15,offset:.2},{opacity:1,transform:"none"}], {duration:900,easing:"cubic-bezier(.25,.6,.25,1)"});
       }
       scrollRevealObserver.unobserve(item.target);
       pendingRows.delete(item.target);
     }
-  }, {threshold:0, rootMargin:"0px 0px -40px 0px"});
+  }, {threshold:0, rootMargin:"0px 0px -80px 0px"});
   for (const row of rows.values()) {
-    if (row[0].getBoundingClientRect().top < innerHeight - 40) continue;
+    if (row[0].getBoundingClientRect().top < innerHeight - 80) continue;
     row.forEach(card => card.classList.add("scroll-pending"));
     pendingRows.set(row[0], row);
     scrollRevealObserver.observe(row[0]);
