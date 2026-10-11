@@ -1029,3 +1029,6 @@ textarea:focus {
   }
   .movie-link { white-space: nowrap; }
 }
+
+.movie-watchlist > .button { margin: 0; }
+.movie-watchlist .suggestion { margin: 12px 0 0; padding: 0; border: 0; }

@@ -368,6 +368,10 @@ const fixture = {
       "/27205-inception/watch",
     ),
   );
+  assert(await page.locator("#toggle-watched").evaluate(el => !!(el.compareDocumentPosition(document.querySelector(".overview")) & Node.DOCUMENT_POSITION_FOLLOWING)));
+  assert.equal(await page.locator(".movie-watchlist .save-note").getAttribute("open"), null);
+  await page.locator(".movie-watchlist .save-note summary").click();
+  await page.screenshot({ path: "/tmp/mojo-watchlist-top-controls.png" });
   await page.locator("#edit-note").fill("Movie night favorite!");
   await page.locator("#note-form button").click();
   await page.waitForFunction(
