@@ -152,6 +152,16 @@ const fixture = {
           results: [
             { provider_id: 8, provider_name: "Netflix", display_priority: 1 },
             {
+              provider_id: 1796,
+              provider_name: "Netflix with Ads",
+              display_priority: 8,
+            },
+            {
+              provider_id: 10001,
+              provider_name: "Obscure Channel",
+              display_priority: 9,
+            },
+            {
               provider_id: 9,
               provider_name: "Amazon Prime Video",
               display_priority: 2,
@@ -205,6 +215,10 @@ const fixture = {
   );
   await page.locator("[data-tab=profile]").click();
   await page.locator("#profile-services summary").click();
+  assert.equal(
+    await page.locator("#profile-services [name=profile-provider]").count(),
+    2,
+  );
   await page.locator('[name="profile-provider"][value="8"]').check();
   await page.locator('[name="profile-provider"][value="9"]').check();
   await page.locator("#streaming-profile button[type=submit]").click();
@@ -238,7 +252,10 @@ const fixture = {
   );
   const lastDiscover = () =>
     new URL(urls.filter((u) => u.includes("/discover/movie")).at(-1));
-  assert.equal(lastDiscover().searchParams.get("with_watch_providers"), "8|9");
+  assert.equal(
+    lastDiscover().searchParams.get("with_watch_providers"),
+    "8|9|1796",
+  );
   assert.equal(
     lastDiscover().searchParams.get("primary_release_date.gte"),
     "2000-01-01",
@@ -253,7 +270,10 @@ const fixture = {
   await page.locator('[name="discovery-provider"][value="9"]').check();
   await page.locator("#filter-form button[type=submit]").click();
   await page.waitForTimeout(200);
-  assert.equal(lastDiscover().searchParams.get("with_watch_providers"), "8|9");
+  assert.equal(
+    lastDiscover().searchParams.get("with_watch_providers"),
+    "8|9|1796",
+  );
   await page.locator("#discovery-services .provider-search").fill("netflix");
   assert(
     await page.locator('[data-provider-name="amazon prime video"]').isHidden(),
