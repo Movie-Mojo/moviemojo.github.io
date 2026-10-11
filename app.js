@@ -157,7 +157,7 @@ function render() {
     return;
   }
   if (!state.approved) {
-    app.innerHTML = `<div class="auth"><p class="eyebrow">You're on the guest list</p><h1>Almost movie time.</h1><p class="subtitle">Your account needs approval before you can access private watch groups. Contact the admin at titav@titav.tech.</p><button id="approval-refresh" class="button full">Check approval</button><button id="logout" class="button secondary full">Sign out</button></div>`;
+    app.innerHTML = `<div class="auth"><p class="eyebrow">You're on the guest list</p><h1>Almost movie time.</h1><p class="subtitle">Verify your email before opening your watchlists. Check your inbox for the confirmation link, then sign in again.</p><button id="approval-refresh" class="button full">Check verification</button><button id="logout" class="button secondary full">Sign out</button></div>`;
     $("#approval-refresh").onclick = (e) =>
       run(e.currentTarget, () => initialize(state.user));
     $("#logout").onclick = logout;
@@ -196,7 +196,7 @@ window.addEventListener("hashchange", () => {
 });
 function auth(signup = false) {
   $("#navigation").hidden = true;
-  app.innerHTML = `<section class="auth"><p class="eyebrow">Good movies. Better company.</p><h1>${signup ? "Join the movie night." : "Your next movie night starts here."}</h1><p class="subtitle">Find something worth watching. Save it with your people.</p><form id="auth-form"><div><label for="email">Email address</label><input id="email" type="email" autocomplete="email" required></div><div><label for="password">Password</label><input id="password" type="password" autocomplete="${signup ? "new-password" : "current-password"}" minlength="6" required></div><button class="button" type="submit">${signup ? "Create account" : "Sign in"} →</button></form><p class="auth-switch muted">${signup ? "Already have an account?" : "New to Movie Mojo?"} <button class="link-button" id="auth-switch">${signup ? "Sign in" : "Create account"}</button></p>${signup ? '<p class="muted">Private by design. New accounts need admin approval.</p>' : '<button class="link-button" id="reset-password">Forgot password?</button>'}</section>`;
+  app.innerHTML = `<section class="auth"><p class="eyebrow">Good movies. Better company.</p><h1>${signup ? "Join the movie night." : "Your next movie night starts here."}</h1><p class="subtitle">Find something worth watching. Save it with your people.</p><form id="auth-form"><div><label for="email">Email address</label><input id="email" type="email" autocomplete="email" required></div><div><label for="password">Password</label><input id="password" type="password" autocomplete="${signup ? "new-password" : "current-password"}" minlength="6" required></div><button class="button" type="submit">${signup ? "Create account" : "Sign in"} →</button></form><p class="auth-switch muted">${signup ? "Already have an account?" : "New to Movie Mojo?"} <button class="link-button" id="auth-switch">${signup ? "Sign in" : "Create account"}</button></p>${signup ? '<p class="muted">Verify your email to get started. Your watchlists stay private to their members.</p>' : '<button class="link-button" id="reset-password">Forgot password?</button>'}</section>`;
   $("#auth-switch").onclick = () => auth(!signup);
   $("#auth-form").onsubmit = (e) => {
     e.preventDefault();
@@ -207,12 +207,12 @@ function auth(signup = false) {
       };
       checked(
         signup
-          ? await db.auth.signUp(credentials)
+          ? await db.auth.signUp({ ...credentials, options: { emailRedirectTo: location.origin + location.pathname } })
           : await db.auth.signInWithPassword(credentials),
       );
       if (signup)
         toast(
-          "Account created. Check your email, then wait for admin approval.",
+          "Check your email and confirm your address to start watching.",
         );
     });
   };
@@ -870,7 +870,7 @@ function groups() {
       (b.onclick = () => {
         const id = b.dataset.invite;
         openModal(
-          `<p class="eyebrow">Save a seat for your friends</p><h2>Invite to ${esc(state.groups.find((g) => g.group_id === id).group_name)}</h2><p class="muted">Friends need an approved account. Share this code so they can join from the Groups tab.</p><input readonly id="invite-code" aria-label="Invite code" value="${id}"><button class="button full" id="copy-code" style="margin-top:16px">Copy invite code</button>`,
+          `<p class="eyebrow">Save a seat for your friends</p><h2>Invite to ${esc(state.groups.find((g) => g.group_id === id).group_name)}</h2><p class="muted">Friends need an email-verified account. Share this code so they can join from the Groups tab.</p><input readonly id="invite-code" aria-label="Invite code" value="${id}"><button class="button full" id="copy-code" style="margin-top:16px">Copy invite code</button>`,
         );
         $("#copy-code").onclick = (e) =>
           run(e.currentTarget, async () => {
