@@ -355,6 +355,8 @@ const fixture = {
       .textContent()
       .then((t) => t.includes("Friend")),
   );
+  assert.equal(await page.locator(".movie-card-wrap").evaluateAll(cards => cards.some(card => [...card.childNodes].some(n => n.nodeType === 3 && n.textContent.trim()))), false, "no stray text outside card buttons");
+  assert.equal(await page.locator(".movie-card").first().textContent().then(t=>t.includes("}")), false);
   const firstCard = page.locator(".movie-card").first();
   await firstCard.dispatchEvent("pointerdown", {button:0,isPrimary:true,clientX:40,clientY:40});
   await firstCard.dispatchEvent("pointermove", {clientX:40,clientY:80});
