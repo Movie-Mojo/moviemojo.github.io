@@ -1,4 +1,4 @@
-const CACHE = "mojo-shell-v24";
+const CACHE = "mojo-shell-v25";
 const SHELL = [
   "./",
   "./index.html",
