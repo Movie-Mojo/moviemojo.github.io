@@ -238,6 +238,9 @@ async function handleInvite() {
   }
   if (state.groups.some((g) => g.group_id === code)) {
     await clear();
+    await switchGroup(code);
+    go("watchlist");
+    toast("You already belong to this group. Opening its watchlist.");
     return;
   }
   openModal(
@@ -1061,7 +1064,7 @@ function groups() {
       (b.onclick = () => {
         const id = b.dataset.invite;
         openModal(
-          `<p class="eyebrow">Save a seat for your friends</p><h2>Invite to ${esc(state.groups.find((g) => g.group_id === id).group_name)}</h2><p class="muted">Friends need an email-verified account. Share this code so they can join from the Groups tab.</p><div id="direct-invite"></div><label for="invite-link">Share invite link</label><input readonly id="invite-link" value="${esc(location.origin + location.pathname + "?invite=" + id)}"><button id="copy-invite-link" class="button">Copy invite link</button><button id="share-invite-link" class="button secondary">Share invitation</button><p class="muted">Anyone with this link can join after verifying their email.</p><input readonly id="invite-code" aria-label="Invite code" value="${id}"><button class="button full" id="copy-code" style="margin-top:16px">Copy invite code</button>`,
+          `<p class="eyebrow">Save a seat for your friends</p><h2>Invite to ${esc(state.groups.find((g) => g.group_id === id).group_name)}</h2><p class="muted">Share the invitation link below. Friends can sign in or create an account to join.</p><div id="direct-invite"></div><label for="invite-link">Share invite link</label><input readonly id="invite-link" value="${esc(location.origin + location.pathname + "?invite=" + id)}"><button id="copy-invite-link" class="button">Copy invite link</button><button id="share-invite-link" class="button secondary">Share invitation</button><p class="muted">Anyone with this link can join after verifying their email.</p><input readonly id="invite-code" aria-label="Invite code" value="${id}"><button class="button full" id="copy-code" style="margin-top:16px">Copy invite code</button>`,
         );
         const link = location.origin + location.pathname + "?invite=" + id;
         $("#copy-invite-link").onclick = (e) =>
@@ -1075,7 +1078,7 @@ function groups() {
               try {
                 await navigator.share({
                   title: "Join my Movie Mojo group",
-                  text: "Let’s find our next movie night.",
+                  text: `Join ${state.groups.find(g=>g.group_id===id)?.group_name || "my group"} on Movie Mojo: ${link}`,
                   url: link,
                 });
               } catch (err) {
