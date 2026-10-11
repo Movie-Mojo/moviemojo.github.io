@@ -373,6 +373,19 @@ const fixture = {
     () => document.querySelectorAll(".movie-card").length === 1,
   );
   await page.locator("[data-tab=profile]").click();
+  assert.equal(await page.locator("#leave-group").count(), 0);
+  await page.locator("#manage-watchlists").click();
+  await page.getByRole("heading", { name: "Your movie circles." }).waitFor();
+  assert.equal(await page.locator("[data-remove-group]").count(), 1);
+  assert.equal(await page.locator("[data-remove-group]").getAttribute("data-remove-group"), fixture.groups[1].group_id);
+  const canceled = page.waitForEvent("dialog").then(async (dialog) => {
+    assert(dialog.message().includes("Friday Night Crew"));
+    await dialog.dismiss();
+  });
+  await page.locator("[data-remove-group]").click();
+  await canceled;
+  assert.equal(await page.locator(".group-card").count(), 2);
+  await page.locator("[data-tab=profile]").click();
   await page.locator("#my-watched-history").click();
   await page.getByRole("heading", { name: "Arrival", exact: true }).waitFor();
   await page.locator("[data-history=remove]").click();
