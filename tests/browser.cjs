@@ -277,7 +277,41 @@ const fixture = {
             runtime: 148,
             overview: "A dream within a dream.",
             vote_average: 8.4,
-            "watch/providers": { results: {} },
+            "watch/providers": {
+              results: {
+                US: {
+                  link: "https://www.themoviedb.org/movie/27205-inception/watch?locale=US",
+                  flatrate: [
+                    {
+                      provider_id: 8,
+                      provider_name: "Netflix",
+                      logo_path: "/logo.png",
+                    },
+                  ],
+                  rent: [
+                    {
+                      provider_id: 2,
+                      provider_name: "Apple TV",
+                      logo_path: "/apple.png",
+                    },
+                  ],
+                  buy: [
+                    {
+                      provider_id: 9,
+                      provider_name: "Amazon Video",
+                      logo_path: "/amazon.png",
+                    },
+                  ],
+                  ads: [
+                    {
+                      provider_id: 73,
+                      provider_name: "Tubi",
+                      logo_path: "/tubi.png",
+                    },
+                  ],
+                },
+              },
+            },
             videos: { results: [] },
           }
         : {
@@ -311,6 +345,17 @@ const fixture = {
       .then((t) => t.includes("Friend")),
   );
   await page.locator(".movie-card").first().click();
+  await page
+    .getByRole("heading", { name: "With a subscription", exact: true })
+    .waitFor();
+  await page.getByRole("heading", { name: "Rent", exact: true }).waitFor();
+  await page.getByRole("heading", { name: "Buy", exact: true }).waitFor();
+  assert.equal(await page.locator(".watch-offer").count(), 4);
+  assert(
+    (await page.locator(".watch-offer").first().getAttribute("href")).includes(
+      "/27205-inception/watch",
+    ),
+  );
   await page.locator("#edit-note").fill("Movie night favorite!");
   await page.locator("#note-form button").click();
   await page.waitForFunction(

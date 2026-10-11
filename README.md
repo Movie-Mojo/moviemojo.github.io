@@ -54,3 +54,5 @@ Friend watched profiles combine movies currently marked watched in any of a user
 Every account receives a permanent personal list, protected against sharing, leaving, or deletion. Group Invite offers copyable links and native sharing. Signup saves a pending invitation in user metadata solely as a bearer invite code; verification completes the join. Existing users explicitly accept invite links. `database-personal-lists.sql` records personal-list enforcement.
 
 Sign-in offers Keep me signed in: localStorage when selected, sessionStorage otherwise, with Supabase automatic refresh and URL recovery enabled. Existing local sessions retain their storage key. Browser tab restoration can retain sessionStorage; use Sign out on shared devices. Sessions are separate per browser and origin. Passwords are never stored by the application.
+
+Movie viewing options separate subscription, free, ad-supported, rental and purchase offers. Clickable providers lead to the exact movie’s TMDB watch page. TMDB does not supply direct provider links or prices; these require an additional licensed offer feed.

@@ -805,6 +805,41 @@ function renderResults() {
   $("#load-more").hidden = state.page >= state.total;
   bindCards(list);
 }
+function watchOptions(providers, region) {
+  const safeLink = (url) => {
+    try {
+      const u = new URL(url);
+      return u.protocol === "https:" ? u.href : null;
+    } catch {
+      return null;
+    }
+  };
+  const link = safeLink(providers?.link);
+  const categories = [
+    ["flatrate", "With a subscription", "Included with a subscription"],
+    ["free", "Watch free", "Free"],
+    ["ads", "Free with ads", "Ad-supported"],
+    ["rent", "Rent", "Check rental price"],
+    ["buy", "Buy", "Check purchase price"],
+  ];
+  const sections = categories
+    .filter(([key]) => providers?.[key]?.length)
+    .map(
+      ([key, label, caption]) =>
+        `<section class="watch-options-section"><h3>${label}</h3><div class="watch-offers">${providers[
+          key
+        ]
+          .map((p) => {
+            const content = `${p.logo_path ? `<img src="${image(p.logo_path)}" alt="" loading="lazy">` : ""}<span><strong>${esc(p.provider_name)}</strong><small>${caption}${link ? " · View offers ↗" : ""}</small></span>`;
+            return link
+              ? `<a class="watch-offer" href="${esc(link)}" target="_blank" rel="noopener" aria-label="View ${esc(p.provider_name)} ${key === "buy" ? "purchase" : key === "rent" ? "rental" : "streaming"} offers for this movie on TMDB">${content}</a>`
+              : `<div class="watch-offer">${content}</div>`;
+          })
+          .join("")}</div></section>`,
+    )
+    .join("");
+  return `<section class="watch-options"><h2>Where to watch</h2><p class="muted">Availability in ${esc(region)} · JustWatch via TMDB</p>${sections || '<p class="muted">No viewing options reported for this country.</p>'}${sections && link ? '<p class="muted">Links open this movie’s TMDB watch page, where you can choose a service. Rental and purchase prices are not supplied here; confirm the current price before paying.</p>' : ""}</section>`;
+}
 async function details(movie, entry = null) {
   openModal('<p class="loading">Loading the feature…</p>');
   let data = movie;
@@ -828,7 +863,7 @@ async function details(movie, entry = null) {
     ];
   const region = state.filters.watch_region || state.streamingRegion;
   openModal(
-    `${poster ? `<img class="detail-poster" src="${esc(poster)}" alt="${esc(movie.title)} poster">` : ""}<div class="detail-heading"><p class="eyebrow">${entry ? "On your watchlist" : "Worth a watch"}</p><h2>${esc(data.title || movie.title)}</h2><p class="muted">${esc(data.release_date?.slice(0, 4) || movie.release_year || "")} ${data.runtime ? "· " + data.runtime + " min" : ""}</p>${data.vote_average ? `<p>★ ${Number(data.vote_average).toFixed(1)} <span class="muted">TMDB audience score</span></p>` : ""}</div><p class="overview">${esc(data.overview || movie.description || "No synopsis available for this movie.")}</p>${providers?.flatrate?.length ? `<p class="muted">Streaming in ${region}</p><div class="provider-list">${providers.flatrate.map((p) => `<img src="${image(p.logo_path)}" alt="${esc(p.provider_name)}" title="${esc(p.provider_name)}">`).join("")}</div><a class="link-button" href="${esc(providers.link)}" target="_blank" rel="noopener">Check availability on TMDB / JustWatch ↗</a>` : '<p class="muted">No subscription streaming information available for this country.</p>'}${entry ? `<div class="suggestion"><p class="muted">Added by ${esc(contributorName(entry))}</p>${entry.suggestion_note ? `<blockquote>${esc(entry.suggestion_note)}</blockquote>` : ""}${entry.added_by === state.user.id ? `<form id="note-form"><label for="edit-note">Your suggestion note (optional)</label><textarea id="edit-note" maxlength="500" rows="3" placeholder="Why should we watch this?">${esc(entry.suggestion_note || "")}</textarea><button class="button secondary" type="submit">Save note</button></form>` : ""}</div>` : ""}<div class="details-actions">${entry ? `<button id="toggle-watched" class="button">${entry.watched ? "Move to watchlist" : "Mark watched"}</button><button id="remove-movie" class="button danger">Remove</button>` : `<label for="save-group">Save to watchlist</label><select id="save-group">${state.groups.map((g) => `<option value="${g.group_id}" ${g.group_id === state.group?.group_id ? "selected" : ""}>${esc(g.group_name)}</option>`).join("")}</select><label for="suggestion-note">Suggestion note (optional)</label><textarea id="suggestion-note" maxlength="500" rows="3" placeholder="I’ve heard this is great!"></textarea><button id="save-movie" class="button" ${!state.group ? "disabled" : ""}>＋ Add to watchlist</button>`}${trailer ? `<a class="button secondary" href="https://www.youtube.com/watch?v=${encodeURIComponent(trailer.key)}" target="_blank" rel="noopener">Watch trailer ↗</a>` : ""}${data.external_ids?.imdb_id ? `<a class="button secondary" href="https://www.imdb.com/title/${encodeURIComponent(data.external_ids.imdb_id)}/" target="_blank" rel="noopener">IMDb ↗</a>` : ""}</div>`,
+    `${poster ? `<img class="detail-poster" src="${esc(poster)}" alt="${esc(movie.title)} poster">` : ""}<div class="detail-heading"><p class="eyebrow">${entry ? "On your watchlist" : "Worth a watch"}</p><h2>${esc(data.title || movie.title)}</h2><p class="muted">${esc(data.release_date?.slice(0, 4) || movie.release_year || "")} ${data.runtime ? "· " + data.runtime + " min" : ""}</p>${data.vote_average ? `<p>★ ${Number(data.vote_average).toFixed(1)} <span class="muted">TMDB audience score</span></p>` : ""}</div><p class="overview">${esc(data.overview || movie.description || "No synopsis available for this movie.")}</p>${watchOptions(providers, region)}${entry ? `<div class="suggestion"><p class="muted">Added by ${esc(contributorName(entry))}</p>${entry.suggestion_note ? `<blockquote>${esc(entry.suggestion_note)}</blockquote>` : ""}${entry.added_by === state.user.id ? `<form id="note-form"><label for="edit-note">Your suggestion note (optional)</label><textarea id="edit-note" maxlength="500" rows="3" placeholder="Why should we watch this?">${esc(entry.suggestion_note || "")}</textarea><button class="button secondary" type="submit">Save note</button></form>` : ""}</div>` : ""}<div class="details-actions">${entry ? `<button id="toggle-watched" class="button">${entry.watched ? "Move to watchlist" : "Mark watched"}</button><button id="remove-movie" class="button danger">Remove</button>` : `<label for="save-group">Save to watchlist</label><select id="save-group">${state.groups.map((g) => `<option value="${g.group_id}" ${g.group_id === state.group?.group_id ? "selected" : ""}>${esc(g.group_name)}</option>`).join("")}</select><label for="suggestion-note">Suggestion note (optional)</label><textarea id="suggestion-note" maxlength="500" rows="3" placeholder="I’ve heard this is great!"></textarea><button id="save-movie" class="button" ${!state.group ? "disabled" : ""}>＋ Add to watchlist</button>`}${trailer ? `<a class="button secondary" href="https://www.youtube.com/watch?v=${encodeURIComponent(trailer.key)}" target="_blank" rel="noopener">Watch trailer ↗</a>` : ""}${data.external_ids?.imdb_id ? `<a class="button secondary" href="https://www.imdb.com/title/${encodeURIComponent(data.external_ids.imdb_id)}/" target="_blank" rel="noopener">IMDb ↗</a>` : ""}</div>`,
   );
   if ($("#note-form"))
     $("#note-form").onsubmit = (e) => {
