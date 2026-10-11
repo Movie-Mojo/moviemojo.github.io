@@ -48,3 +48,5 @@ Supabase's remaining platform advisories are an available Postgres security upgr
 Movie metadata is provided by TMDB. This product uses the TMDB API but is not endorsed or certified by TMDB. Streaming information is provided by JustWatch via TMDB.
 
 Friends use shared friend codes with accepted requests. Group members can send in-app invitations to accepted friends; recipients must accept before joining. Emails remain private. `database-friends.sql` records the checked RPC and private social tables.
+
+Friend watched profiles combine movies currently marked watched in any of a user’s groups. Titles are shared with accepted friends, without group names or notes. Profile → Manage watched history lets the owner remove or restore personal exceptions without changing group lists. `database-watched-profiles.sql` records this access-controlled feature.
