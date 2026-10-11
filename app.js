@@ -879,7 +879,7 @@ function watchOptions(providers, region) {
           key
         ]
           .map((p) => {
-            const content = `${p.logo_path ? `<img src="${image(p.logo_path)}" alt="" loading="lazy">` : ""}<span><strong>${esc(p.provider_name)}</strong><small>${caption}${link ? " · View offers ↗" : ""}</small></span>`;
+            const content = `${p.logo_path ? `<img src="${image(p.logo_path)}" alt="" loading="lazy">` : ""}<span><strong>${esc(p.provider_name)}</strong><small>${caption}${link ? ' · View offers <svg class="offer-link-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M14 4h6v6M20 4l-9 9M10 4H5a1 1 0 0 0-1 1v14a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-5"/></svg>' : ""}</small></span>`;
             return link
               ? `<a class="watch-offer" href="${esc(link)}" target="_blank" rel="noopener" aria-label="View ${esc(p.provider_name)} ${key === "buy" ? "purchase" : key === "rent" ? "rental" : "streaming"} offers for this movie on TMDB">${content}</a>`
               : `<div class="watch-offer">${content}</div>`;
