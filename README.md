@@ -62,3 +62,5 @@ Movie API security: `supabase/functions/movie-data` accepts only approved, email
 After deploying, replace the previously public TMDB key in Supabase Secrets and revoke it at TMDB. Git history and old service-worker caches may retain the old key; deleting code cannot revoke it. Never place private credentials in frontend files or generated Pages assets. `.gitignore` excludes environment files and private-key files.
 
 Run `node tests/movie-proxy.cjs` for proxy authorization, validation, rate-limit, cache and upstream-failure tests.
+
+TMDB attribution appears in About & credits on both the sign-in screen and Profile, using an unmodified approved TMDB logo linked to https://www.themoviedb.org/ and the required non-endorsement notice. Requirements verified against signed-in API → Overview and https://developer.themoviedb.org/docs/faq and https://www.themoviedb.org/about/logos-attribution.

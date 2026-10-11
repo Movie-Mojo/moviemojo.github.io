@@ -996,3 +996,17 @@ textarea:focus {
   stroke-linecap: round;
   stroke-linejoin: round;
 }
+
+.movie-credits {
+  margin-top: 28px;
+  padding-top: 22px;
+  border-top: 1px solid var(--line);
+  font-size: 0.875rem;
+  line-height: 1.6;
+  color: var(--muted);
+}
+.movie-credits h2 { font-size: 1rem; color: #f1eff9; }
+.movie-credits p { margin: 10px 0; }
+.movie-credits a { color: var(--accent); }
+.tmdb-credit { display: inline-block; margin: 8px 0; }
+.tmdb-credit img { display: block; width: 130px; height: auto; }
