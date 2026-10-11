@@ -92,7 +92,8 @@ const fixture = {
             },
           },
           rpc: async (name, args) => {
-            if (name === "mojo_join_group") {
+            if (name === "mojo_share_invite") return {data:{token:"99999999-9999-9999-9999-999999999999",expires_at:new Date(Date.now()+7*86400000).toISOString()},error:null};
+            if (name === "mojo_join_group" || name === "mojo_accept_invite") {
               fixture.joinedInvite = args.invite_code;
               if (!fixture.groups.some((g) => g.group_id === args.invite_code))
                 fixture.groups.push({
@@ -101,7 +102,7 @@ const fixture = {
                   created_by: fixture.user.id,
                   member_count: 2,
                 });
-              return { error: null };
+              return { data: args.invite_code, error: null };
             }
             if (name === "mojo_personal_list")
               return {
@@ -578,11 +579,11 @@ const fixture = {
   await page.locator("[data-invite]").click();
   assert.equal(
     await page.locator("#invite-code").inputValue(),
-    fixture.groups[1].group_id,
+    "99999999-9999-9999-9999-999999999999",
   );
   assert.equal(
     await page.locator("#invite-link").inputValue(),
-    new URL(page.url()).origin + "/?invite=" + fixture.groups[1].group_id,
+    new URL(page.url()).origin + "/?invite=99999999-9999-9999-9999-999999999999",
   );
   await page.locator("#send-direct-invite").click();
   await page.waitForFunction(() =>

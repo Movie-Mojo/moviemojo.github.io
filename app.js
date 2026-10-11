@@ -272,14 +272,13 @@ async function handleInvite() {
     }
   };
   const join = async () => {
-    if (!state.groups.some((g) => g.group_id === code))
-      checked(await db.rpc("mojo_join_group", { invite_code: code }));
+    const groupId = checked(await db.rpc("mojo_accept_invite", { invite_code: code }));
     await clear();
     await loadGroups();
-    await switchGroup(code);
+    await switchGroup(groupId);
     modal.close();
     go("watchlist");
-    toast("You joined the group.");
+    toast("Your group watchlist is ready.");
   };
   if (automatic) {
     try {
@@ -288,13 +287,6 @@ async function handleInvite() {
       toast(e.message);
       await clear();
     }
-    return;
-  }
-  if (state.groups.some((g) => g.group_id === code)) {
-    await clear();
-    await switchGroup(code);
-    go("watchlist");
-    toast("You already belong to this group. Opening its watchlist.");
     return;
   }
   openModal(
@@ -1199,12 +1191,14 @@ function groups() {
   );
   app.querySelectorAll("[data-invite]").forEach(
     (b) =>
-      (b.onclick = () => {
+      (b.onclick = () => run(b, async () => {
         const id = b.dataset.invite;
+        const invitation = checked(await db.rpc("mojo_share_invite", { target_group: id }));
+        const token = invitation.token;
         openModal(
-          `<p class="eyebrow">Save a seat for your friends</p><h2>Invite to ${esc(state.groups.find((g) => g.group_id === id).group_name)}</h2><p class="muted">Share the invitation link below. Friends can sign in or create an account to join.</p><div id="direct-invite"></div><label for="invite-link">Share invite link</label><input readonly id="invite-link" value="${esc(location.origin + location.pathname + "?invite=" + id)}"><button id="copy-invite-link" class="button">Copy invite link</button><button id="share-invite-link" class="button secondary">Share invitation</button><p class="muted">Anyone with this link can join after verifying their email.</p><input readonly id="invite-code" aria-label="Invite code" value="${id}"><button class="button full" id="copy-code" style="margin-top:16px">Copy invite code</button>`,
+          `<p class="eyebrow">Save a seat for your friends</p><h2>Invite to ${esc(state.groups.find((g) => g.group_id === id).group_name)}</h2><p class="muted">Share the invitation link below. Friends can sign in or create an account to join.</p><div id="direct-invite"></div><label for="invite-link">Share invite link</label><input readonly id="invite-link" value="${esc(location.origin + location.pathname + "?invite=" + token)}"><button id="copy-invite-link" class="button">Copy invite link</button><button id="share-invite-link" class="button secondary">Share invitation</button><p class="muted">This invitation expires ${esc(new Date(invitation.expires_at).toLocaleDateString())} (7 days after creation). Anyone with the link can join after verifying their email.</p><input readonly id="invite-code" aria-label="Invite code" value="${token}"><button class="button full" id="copy-code" style="margin-top:16px">Copy invite code</button>`,
         );
-        const link = location.origin + location.pathname + "?invite=" + id;
+        const link = location.origin + location.pathname + "?invite=" + token;
         $("#copy-invite-link").onclick = (e) =>
           run(e.currentTarget, async () => {
             await navigator.clipboard.writeText(link);
@@ -1231,14 +1225,14 @@ function groups() {
         $("#copy-code").onclick = (e) =>
           run(e.currentTarget, async () => {
             try {
-              await navigator.clipboard.writeText(id);
+              await navigator.clipboard.writeText(token);
               toast("Invite copied.");
             } catch {
               $("#invite-code").select();
               toast("Select and copy the code above.");
             }
           });
-      }),
+      })),
   );
   $("#create-group").onsubmit = (e) => {
     e.preventDefault();
