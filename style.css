@@ -1093,3 +1093,10 @@ textarea:focus {
   .grid > .scroll-pending { opacity: 0; animation: none; }
   dialog.from-card[open] { animation: none; }
 }
+
+.discovery-loading { grid-column: 1 / -1; min-height: 220px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; text-align: center; padding: 32px 20px; border: 1px solid var(--line); border-radius: 18px; background: #ffffff02; }
+.discovery-loading p { margin: 0; font-size: 17px; font-weight: 600; }
+.discovery-loading .muted { font-size: 13px; }
+.loading-orbit { width: 28px; height: 28px; border: 2px solid #b5a0ff25; border-top-color: var(--accent); border-radius: 50%; }
+@media (prefers-reduced-motion: no-preference) { .loading-orbit { animation: orbit 1s linear infinite; } }
+@keyframes orbit { to { transform: rotate(360deg); } }

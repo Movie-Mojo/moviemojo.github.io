@@ -279,7 +279,7 @@ const fixture = {
             },
           ],
         }
-      : url.pathname.includes("/movie/")
+      : url.pathname.includes("/movie/") && !url.pathname.includes("/trending/")
         ? {
             id: 27205,
             title: "Inception",
@@ -462,13 +462,15 @@ const fixture = {
   );
   await page.locator("[data-tab=discover]").click();
   await page.locator("#results .movie-card").waitFor();
+  assert.equal(await page.locator('[data-mood="0"]').getAttribute("aria-pressed"), "true");
+  assert(urls.some(u=>u.includes("/trending/movie/week")));
   for (let i = 0; i < 10; i++) {
     // Even an already-open panel must close when a shortcut is selected.
     await page.locator("details.filters").evaluate((panel) => panel.open = true);
-    await page.locator(`[data-mood="${i}"]`).click();
+    await page.locator(`[data-mood="${i+1}"]`).click();
     await page.waitForTimeout(200);
     assert.equal(await page.locator("details.filters").evaluate((panel) => panel.open), false);
-    assert.equal(await page.locator(`[data-mood="${i}"]`).getAttribute("aria-pressed"), "true");
+    assert.equal(await page.locator(`[data-mood="${i+1}"]`).getAttribute("aria-pressed"), "true");
     assert(await page.locator("#mood-description").isVisible());
     const params = new URL(urls.filter((u) => u.includes("/discover/movie")).at(-1)).searchParams;
     assert.equal(params.get("with_runtime.gte"), "40");
@@ -488,11 +490,11 @@ const fixture = {
     if (i === 8) assert.equal(params.get("with_genres"), "28");
     if (i === 9) assert.equal(params.get("with_genres"), "10749");
   }
-  await page.locator('[data-mood="9"]').click();
+  await page.locator('[data-mood="10"]').click();
   await page.waitForTimeout(200);
-  assert.equal(await page.locator('[data-mood="9"]').getAttribute("aria-pressed"), "false");
+  assert.equal(await page.locator('[data-mood="10"]').getAttribute("aria-pressed"), "false");
   assert.equal(await page.locator("#mood-description").isVisible(), false);
-  await page.locator('[data-mood="6"]').click();
+  await page.locator('[data-mood="7"]').click();
   await page.waitForTimeout(200);
   await page.locator("details.filters > summary").click();
   await page.locator("#discovery-services summary").click();
@@ -527,7 +529,7 @@ const fixture = {
     "2020-12-31",
   );
   assert(!lastDiscover().searchParams.has("useMyServices"));
-  await page.locator('[data-mood="1"]').click();
+  await page.locator('[data-mood="2"]').click();
   await page.waitForTimeout(200);
   assert.equal(lastDiscover().searchParams.get("with_watch_providers"), "8|9|1796");
   assert.equal(lastDiscover().searchParams.get("with_watch_monetization_types"), "flatrate|free|ads");
