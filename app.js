@@ -74,7 +74,7 @@ const state = {
   mode: "discover",
   viewingMode: "streaming",
   query: "",
-  filters: {},
+  filters: { mood: "Trending Now", trending: true },
   request: 0,
 };
 const esc = (v) =>
@@ -531,6 +531,7 @@ function select(name, label, options) {
   return `<div><label for="${name}">${label}</label><select id="${name}" name="${name}">${options.map(([v, l]) => `<option value="${v}" ${String(state.filters[name] || "") === String(v) ? "selected" : ""}>${l}</option>`).join("")}</select></div>`;
 }
 const moodShortcuts = [
+  { label: "Trending Now", description: "Movies getting attention this week · ranked by current interest", filters: { trending: true } },
   { label: "Recent Releases", description: "Released in the past year · newest first · at least 20 votes", filters: { recentRelease: true, "vote_count.gte": "20", "with_runtime.gte": "40", sort_by: "primary_release_date.desc" } },
   { label: "Highly rated", description: "Rated 7.5+ with at least 500 votes · highest rated first", filters: { "vote_average.gte": "7.5", "vote_count.gte": "500", "with_runtime.gte": "40", sort_by: "vote_average.desc" } },
   { label: "Make me laugh", description: "Comedies rated 6+ · excludes horror", filters: { with_genres: "35", without_genres: "27", "vote_average.gte": "6", "with_runtime.gte": "40" } },
@@ -589,7 +590,7 @@ function discover() {
     ["GB", "United Kingdom"],
     ["CA", "Canada"],
     ["AU", "Australia"],
-  ])}<div class="streaming-filter"><label>Streaming services</label><div id="discovery-services"></div></div></div><label class="checkbox"><input type="checkbox" id="hide-watched" ${state.filters.hideWatched ? "checked" : ""}> Hide movies watched by this group</label><div class="filter-actions"><button class="button" type="submit">Find movies →</button><button class="button secondary" id="reset-filters" type="button">Reset</button></div></form></details><div class="section-row"><h2 id="results-title">${state.mode === "search" ? "Search results" : "Your next obsession"}</h2><span class="count">${state.group ? esc(state.group.group_name) : "Choose a group to save movies"}</span></div><div class="availability-switch" role="group" aria-label="Movie availability"><button type="button" data-availability="streaming" aria-pressed="${state.viewingMode === "streaming"}">Streaming</button><button type="button" data-availability="buy-rent" aria-pressed="${state.viewingMode === "buy-rent"}">Buy/Rent</button><button type="button" data-availability="all" aria-pressed="${state.viewingMode === "all"}">All</button></div><p id="availability-hint" class="muted" hidden>Title search shows all matches. Choose an availability option to return to browsing.</p><div id="results" class="grid"></div><button class="button secondary full" id="load-more" hidden>Load more movies</button><div class="manual"><button id="manual-add" class="link-button">Can't find it? Add a movie manually</button></div>`;
+  ])}<div class="streaming-filter"><label>Streaming services</label><div id="discovery-services"></div></div></div><label class="checkbox"><input type="checkbox" id="hide-watched" ${state.filters.hideWatched ? "checked" : ""}> Hide movies watched by this group</label><div class="filter-actions"><button class="button" type="submit">Find movies →</button><button class="button secondary" id="reset-filters" type="button">Reset</button></div></form></details><div class="section-row"><h2 id="results-title">${state.mode === "search" ? "Search results" : state.filters.trending ? "Trending this week" : "Your next obsession"}</h2><span class="count">${state.group ? esc(state.group.group_name) : "Choose a group to save movies"}</span></div><div class="availability-switch" role="group" aria-label="Movie availability"><button type="button" data-availability="streaming" aria-pressed="${state.viewingMode === "streaming"}">Streaming</button><button type="button" data-availability="buy-rent" aria-pressed="${state.viewingMode === "buy-rent"}">Buy/Rent</button><button type="button" data-availability="all" aria-pressed="${state.viewingMode === "all"}">All</button></div><p id="availability-hint" class="muted" hidden>Title search shows all matches. Choose an availability option to return to browsing.</p><div id="results" class="grid"></div><button class="button secondary full" id="load-more" hidden>Load more movies</button><div class="manual"><button id="manual-add" class="link-button">Can't find it? Add a movie manually</button></div>`;
   app.querySelectorAll("[data-availability]").forEach((button) => {
     button.onclick = () => {
       state.viewingMode = button.dataset.availability;
@@ -870,7 +871,7 @@ async function fetchDiscover(append = false) {
   const nextPage = append ? state.page + 1 : 1;
   const results = $("#results");
   if (!append)
-    results.innerHTML = '<p class="loading">Finding the good stuff…</p>';
+    results.innerHTML = '<div class="discovery-loading" role="status"><span class="loading-orbit" aria-hidden="true"></span><p>Finding your next watch</p><span class="muted">Checking movies and viewing options…</span></div>';
   try {
     const f = state.filters;
     if (
@@ -921,16 +922,28 @@ async function fetchDiscover(append = false) {
       "yearTo",
       "mood",
       "recentRelease",
+      "trending",
     ])
       delete params[key];
     const data = await tmdb(
-      state.mode === "search" ? "search/movie" : "discover/movie",
-      { ...params, page: nextPage, include_adult: false },
+      state.mode === "search" ? "search/movie" : f.trending ? "trending/movie/week" : "discover/movie",
+      f.trending && state.mode !== "search" ? {page:nextPage} : { ...params, page: nextPage, include_adult: false },
     );
     if (request !== state.request || !results.isConnected) return;
     state.page = nextPage;
     state.total = Math.min(data.total_pages || 1, 500);
-    state.results = append ? [...state.results, ...data.results] : data.results;
+    let movies = data.results.filter(movie => !movie.adult);
+    if (f.trending && state.mode !== "search" && (state.viewingMode !== "all" || providerIds.length)) {
+      const types = state.viewingMode === "buy-rent" ? ["rent","buy"] : state.viewingMode === "all" ? ["flatrate","free","ads","rent","buy"] : ["flatrate","free","ads"];
+      const available = await Promise.all(movies.map(async movie => {
+        const detail = await loadMovieDetails(movie);
+        const offers = detail["watch/providers"]?.results?.[f.watch_region || state.streamingRegion];
+        return types.some(type => offers?.[type]?.some(provider => !providerIds.length || providerIds.includes(provider.provider_id)));
+      }));
+      movies = movies.filter((_,i) => available[i]);
+    }
+    if (request !== state.request || !results.isConnected) return;
+    state.results = append ? [...state.results, ...movies] : movies;
     renderResults();
   } catch (e) {
     if (request === state.request && results.isConnected) {
@@ -950,7 +963,7 @@ function renderResults() {
   if ($("#availability-hint")) $("#availability-hint").hidden = state.mode !== "search";
   if ($("#results-title"))
     $("#results-title").textContent =
-      state.mode === "search" ? "Search results" : "Your next obsession";
+      state.mode === "search" ? "Search results" : state.filters.trending ? "Trending this week" : "Your next obsession";
   const watched = new Set(
     state.movies.filter((m) => m.watched).map((m) => String(m.movies.tmdb_id)),
   );

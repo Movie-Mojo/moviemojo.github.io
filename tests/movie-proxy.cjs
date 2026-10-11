@@ -3,6 +3,8 @@ const { readFileSync } = require('node:fs');
 (async () => {
  const source = readFileSync('supabase/functions/movie-data/handler.js','utf8');
  const { createHandler, movieURL } = await import('data:text/javascript;base64,' + Buffer.from(source).toString('base64'));
+ assert.equal(movieURL({path:"trending/movie/week",params:{page:2}}).pathname,"/3/trending/movie/week");
+ assert.throws(()=>movieURL({path:"trending/movie/week",params:{with_genres:"35"}}));
  let gateStatus=200, allowed=true, upstreamStatus=200, calls=[], clock=1000;
  const env = n => ({TMDB_API_KEY:'server-only-test-key',SUPABASE_URL:'https://database.test',SUPABASE_ANON_KEY:'public-test-key'})[n];
  const handler=createHandler({env, now:()=>clock, fetch:async (url,options)=>{

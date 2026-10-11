@@ -20,10 +20,10 @@ const rules = {
 export function movieURL(body) {
   if (!body || typeof body !== "object" || Array.isArray(body) || Object.keys(body).some((k) => !["path", "params"].includes(k))) throw Error("Invalid request");
   const path = body.path;
-  if (!["discover/movie", "search/movie", "watch/providers/movie"].includes(path) && !(typeof path === "string" && /^movie\/[1-9]\d{0,11}$/.test(path))) throw Error("Invalid endpoint");
+  if (!["discover/movie", "search/movie", "watch/providers/movie", "trending/movie/week"].includes(path) && !(typeof path === "string" && /^movie\/[1-9]\d{0,11}$/.test(path))) throw Error("Invalid endpoint");
   const params = body.params ?? {};
   if (typeof params !== "object" || Array.isArray(params)) throw Error("Invalid filters");
-  const allowed = path === "search/movie" ? ["query", "page", "include_adult"] : path === "watch/providers/movie" ? ["watch_region"] : path.startsWith("movie/") ? ["append_to_response"] : Object.keys(rules).filter((k) => !["query", "append_to_response"].includes(k));
+  const allowed = path === "trending/movie/week" ? ["page"] : path === "search/movie" ? ["query", "page", "include_adult"] : path === "watch/providers/movie" ? ["watch_region"] : path.startsWith("movie/") ? ["append_to_response"] : Object.keys(rules).filter((k) => !["query", "append_to_response"].includes(k));
   const url = new URL(`https://api.themoviedb.org/3/${path}`);
   for (const [key, raw] of Object.entries(params).sort(([a], [b]) => a.localeCompare(b))) {
     if (!allowed.includes(key) || !["string", "number", "boolean"].includes(typeof raw) || !rules[key](String(raw))) throw Error("Invalid filters");
