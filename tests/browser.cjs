@@ -500,6 +500,10 @@ const fixture = {
   assert.equal(lastDiscover().searchParams.get("with_watch_monetization_types"), "rent|buy");
   assert(!lastDiscover().searchParams.has("with_watch_providers"));
   assert.equal(await page.locator('[data-availability="buy-rent"]').getAttribute("aria-pressed"), "true");
+  await page.locator('[data-availability="all"]').click();
+  await page.waitForTimeout(300);
+  assert(!lastDiscover().searchParams.has("with_watch_monetization_types"));
+  assert.equal(await page.locator('[data-availability="all"]').getAttribute("aria-pressed"), "true");
   await page.locator('[data-availability="streaming"]').click();
   await page.waitForTimeout(300);
   assert.equal(lastDiscover().searchParams.get("with_watch_monetization_types"), "flatrate|free|ads");
