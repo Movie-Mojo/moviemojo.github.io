@@ -659,6 +659,12 @@ const fixture = {
   await page.screenshot({ path: "/tmp/mojo-friends.png", fullPage: true });
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.locator("[data-tab=watchlist]").click();
+  assert(await page.locator(".card-menu-button").first().isVisible());
+  assert(await page.locator(".movie-card-wrap").first().evaluate(el => {
+    const card = el.querySelector(".poster-wrap").getBoundingClientRect();
+    const menu = el.querySelector(".card-menu-button").getBoundingClientRect();
+    return Math.abs(menu.top-card.top)<1 && Math.abs(menu.right-card.right)<1 && getComputedStyle(el.querySelector(".card-menu-button"),"::before").width === "26px";
+  }), "desktop menu must be compact and inside the poster corner");
   await page.screenshot({ path: "/tmp/mojo-desktop.png", fullPage: true });
   const baseURL = page.url().split("#")[0].split("?")[0];
   await page.goto(baseURL + "?invite=77777777-7777-7777-7777-777777777777");
