@@ -1020,3 +1020,12 @@ textarea:focus {
 .save-note summary { cursor: pointer; }
 .save-note label { display: block; margin: 12px 0 6px; }
 .save-note textarea { width: 100%; resize: vertical; }
+
+@media (max-width: 480px) {
+  .movie-links {
+    clear: both;
+    flex-wrap: nowrap;
+    padding-top: 4px;
+  }
+  .movie-link { white-space: nowrap; }
+}

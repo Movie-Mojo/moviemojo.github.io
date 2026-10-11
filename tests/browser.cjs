@@ -566,6 +566,17 @@ const fixture = {
   );
   await page.locator("#results .movie-card").click();
   await page.getByRole("heading", { name: "Inception", exact: true }).waitFor();
+  await page.locator(".movie-links .movie-link").first().waitFor();
+  for (const width of [320, 375, 390, 430]) {
+    await page.setViewportSize({width,height:844});
+    const links = await page.locator(".movie-links .movie-link").evaluateAll(els=>els.map(el=>{const r=el.getBoundingClientRect();return {top:r.top,left:r.left,right:r.right};}));
+    assert.equal(links.length,2);
+    assert(Math.abs(links[0].top-links[1].top)<1,"movie links must share a row at "+width);
+    assert(links[1].left>=links[0].right,"movie links must not overlap");
+    assert(await page.locator("#modal-content").evaluate(el=>el.scrollWidth<=el.clientWidth),"popup overflow at "+width);
+  }
+  await page.setViewportSize({width:390,height:844});
+  await page.screenshot({path:"/tmp/mojo-mobile-movie-links.png"});
   await page.locator("#close-modal").click();
   await page.locator("[data-tab=groups]").click();
   await page.getByRole("heading", { name: "Your movie circles." }).waitFor();
