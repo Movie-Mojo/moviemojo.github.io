@@ -337,6 +337,7 @@ const fixture = {
             ],
             total_pages: 2,
           };
+    if (url.pathname.includes("/trending/")) data.results.forEach(movie => movie.watch_availability = {US:{flatrate:[{provider_id:8},{provider_id:9}],rent:[{provider_id:8}],buy:[{provider_id:8}]}});
     r.fulfill({ json: data });
   });
   await page.goto("http://localhost:8765");
