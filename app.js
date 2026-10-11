@@ -70,6 +70,7 @@ const state = {
   watched: false,
   watchSort: "added",
   watchReverse: false,
+  watchGenre: "",
   results: [],
   page: 1,
   total: 1,
@@ -465,7 +466,7 @@ function sortedWatchEntries(entries) {
     if(key === "name") return movie.title;
     if(key === "date") return metadata?.release_date || (movie.release_year ? String(movie.release_year) : null);
     if(key === "rating") return metadata?.vote_count > 0 ? metadata.vote_average : null;
-    if(key === "genre") return metadata?.genres?.map(g=>g.name).sort().join(", ") || null;
+
   };
   return [...entries].sort((a,b)=>{
     const av=value(a),bv=value(b);
@@ -476,16 +477,27 @@ function sortedWatchEntries(entries) {
     return (state.watchReverse ? -order : order) || a.movies.title.localeCompare(b.movies.title);
   });
 }
-function watchSortMenu() {
-  openModal(`<p class="eyebrow">Your preferred order</p><h2>Sort movies</h2><div class="watch-sort-options">${[["added","Recently added"],["name","Name"],["date","Release date"],["rating","TMDB rating"],["genre","Genre"]].map(([key,label])=>`<button class="button ${state.watchSort===key ? "" : "secondary"}" data-watch-sort="${key}" aria-pressed="${state.watchSort===key}">${label}</button>`).join("")}</div><p class="muted">Unknown dates, ratings and genres appear last.</p>`);
-  modal.querySelectorAll("[data-watch-sort]").forEach(button=>button.onclick=()=>run(button,async()=>{
-    const key=button.dataset.watchSort;
-    if(["date","rating","genre"].includes(key)) {
+async function loadWatchMetadata() {
       const ids=[...new Set(state.movies.map(e=>e.movies.tmdb_id).filter(id=>id && !watchMetadata.has(String(id))))];
       for(let i=0;i<ids.length;i+=50) {
         const data=await tmdb("movies/metadata",{ids:ids.slice(i,i+50).join(",")});
         data.results.forEach(movie=>watchMetadata.set(String(movie.id),movie));
       }
+}
+function watchGenreMenu() {
+  openModal(`<p class="eyebrow">Narrow your watchlist</p><h2>Filter by genre</h2><div class="watch-genre-options">${[["","All genres"],...genres].map(([id,name])=>`<button class="button ${String(id)===state.watchGenre ? "" : "secondary"}" data-watch-genre="${id}" aria-pressed="${String(id)===state.watchGenre}">${esc(name)}</button>`).join("")}</div>`);
+  modal.querySelectorAll("[data-watch-genre]").forEach(button=>button.onclick=()=>run(button,async()=>{
+    if(button.dataset.watchGenre) await loadWatchMetadata();
+    state.watchGenre=button.dataset.watchGenre;
+    watchlist(); modal.close();
+  }));
+}
+function watchSortMenu() {
+  openModal(`<p class="eyebrow">Your preferred order</p><h2>Sort movies</h2><div class="watch-sort-options">${[["added","Recently added"],["name","Name"],["date","Release date"],["rating","TMDB rating"]].map(([key,label])=>`<button class="button ${state.watchSort===key ? "" : "secondary"}" data-watch-sort="${key}" aria-pressed="${state.watchSort===key}">${label}</button>`).join("")}</div><p class="muted">Unknown dates and ratings appear last.</p>`);
+  modal.querySelectorAll("[data-watch-sort]").forEach(button=>button.onclick=()=>run(button,async()=>{
+    const key=button.dataset.watchSort;
+    if(["date","rating"].includes(key)) {
+      await loadWatchMetadata();
     }
     state.watchSort=key; state.watchReverse=false;
     watchlist(); modal.close();
@@ -493,14 +505,15 @@ function watchSortMenu() {
 }
 function watchlist() {
   const previousPills = app.querySelector(".pills");
-  const entries = sortedWatchEntries(state.movies.filter((m) => !!m.watched === state.watched));
-  app.innerHTML = `<p class="eyebrow">Your movie night, sorted</p><h1>The watchlist.</h1><p class="subtitle">Less scrolling. More watching.</p><div class="toolbar"><select id="group-select" class="group-select" aria-label="Choose watchlist">${state.groups.map((g) => `<option value="${esc(g.group_id)}" ${g.group_id === state.group?.group_id ? "selected" : ""}>${esc(g.group_name)}</option>`).join("") || "<option>No watchlists yet</option>"}</select><button id="add-movie" class="button secondary">＋ Add a movie</button></div><section class="picker-hero"><div><p class="eyebrow">Let fate take the remote</p><h2>Can't decide tonight?</h2><p>One random pick from your unwatched movies.<br>Every movie gets an equal shot.</p></div><button class="button" id="pick">✦ Pick tonight</button></section><div class="section-row"><div class="pills"><button class="pill ${!state.watched ? "active" : ""}" id="unwatched">To watch</button><button class="pill ${state.watched ? "active" : ""}" id="watched">Watched</button></div><div class="watch-sort-controls"><button id="watch-sort" class="button secondary">Sort${state.watchSort === "added" ? "" : ": " + ({name:"Name",date:"Release",rating:"Rating",genre:"Genre"})[state.watchSort]}</button><button id="watch-reverse" class="button secondary" aria-label="Reverse sort order" aria-pressed="${state.watchReverse}" title="Reverse sort order"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4v16m-4-4 4 4 4-4M17 20V4m-4 4 4-4 4 4"/></svg></button><span class="count">${entries.length} movie${entries.length === 1 ? "" : "s"}</span></div></div><div class="grid">${entries.map((m, i) => card(m.movies, i, m)).join("") || empty(state.group ? "The opening scene." : "Bring your people together.", state.group ? "Add a few movies to get your next movie night started." : "Create a group, or a watchlist just for you.", `<button id="empty-action" class="button">${state.group ? "Find a movie" : "Create a watchlist"}</button>`)}</div>`;
+  const entries = sortedWatchEntries(state.movies.filter((m) => !!m.watched === state.watched && (!state.watchGenre || watchMetadata.get(String(m.movies.tmdb_id))?.genres?.some(g=>String(g.id)===state.watchGenre))));
+  app.innerHTML = `<p class="eyebrow">Your movie night, sorted</p><h1>The watchlist.</h1><p class="subtitle">Less scrolling. More watching.</p><div class="toolbar"><select id="group-select" class="group-select" aria-label="Choose watchlist">${state.groups.map((g) => `<option value="${esc(g.group_id)}" ${g.group_id === state.group?.group_id ? "selected" : ""}>${esc(g.group_name)}</option>`).join("") || "<option>No watchlists yet</option>"}</select><button id="add-movie" class="button secondary">＋ Add a movie</button></div><section class="picker-hero"><div><p class="eyebrow">Let fate take the remote</p><h2>Can't decide tonight?</h2><p>One random pick from your unwatched movies.<br>Every movie gets an equal shot.</p></div><button class="button" id="pick">✦ Pick tonight</button></section><div class="section-row"><div class="pills"><button class="pill ${!state.watched ? "active" : ""}" id="unwatched">To watch</button><button class="pill ${state.watched ? "active" : ""}" id="watched">Watched</button></div><div class="watch-sort-controls"><button id="watch-sort" class="button secondary">Sort${state.watchSort === "added" ? "" : ": " + ({name:"Name",date:"Release",rating:"Rating"})[state.watchSort]}</button><button id="watch-reverse" class="button secondary" aria-label="Reverse sort order" aria-pressed="${state.watchReverse}" title="Reverse sort order"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4v16m-4-4 4 4 4-4M17 20V4m-4 4 4-4 4 4"/></svg></button><button id="watch-genre" class="button secondary" aria-pressed="${!!state.watchGenre}">${state.watchGenre ? genres.find(g=>String(g[0])===state.watchGenre)?.[1] || "Genre" : "Filter"}</button><span class="count">${entries.length} movie${entries.length === 1 ? "" : "s"}</span></div></div><div class="grid">${entries.map((m, i) => card(m.movies, i, m)).join("") || empty(state.watchGenre ? "No movies in this genre." : state.group ? "The opening scene." : "Bring your people together.", state.watchGenre ? "Choose All genres to see your full list." : state.group ? "Add a few movies to get your next movie night started." : "Create a group, or a watchlist just for you.", state.watchGenre ? '<button id="clear-watch-genre" class="button">Clear genre filter</button>' : `<button id="empty-action" class="button">${state.group ? "Find a movie" : "Create a watchlist"}</button>`)}</div>`;
   if (previousPills) {
     app.querySelector(".pills").replaceWith(previousPills);
     previousPills.querySelector("#unwatched").classList.toggle("active", !state.watched);
     previousPills.querySelector("#watched").classList.toggle("active", state.watched);
   }
   $("#watch-sort").onclick = watchSortMenu;
+  $("#watch-genre").onclick = watchGenreMenu;
   $("#watch-reverse").onclick = () => { state.watchReverse=!state.watchReverse; watchlist(); };
   $("#group-select").onchange = (e) =>
     run(e.currentTarget, () => switchGroup(e.target.value));
@@ -516,6 +529,7 @@ function watchlist() {
   $("#pick").onclick = pick;
   if ($("#empty-action"))
     $("#empty-action").onclick = () => go(state.group ? "discover" : "groups");
+  if ($("#clear-watch-genre")) $("#clear-watch-genre").onclick = () => { state.watchGenre=""; watchlist(); };
   bindCards(entries, true);
 }
 function randomIndex(length) {

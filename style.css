@@ -1108,3 +1108,6 @@ textarea:focus {
 .watch-sort-options { display: grid; gap: 8px; margin: 18px 0; }
 .watch-sort-options .button { margin: 0; text-align: left; }
 @media(max-width:480px) { .section-row:has(.watch-sort-controls) { flex-wrap: wrap; gap: 12px; } .watch-sort-controls .count { margin-left: 4px; } }
+
+.watch-genre-options { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-top: 18px; }
+.watch-genre-options .button { margin: 0; font-size: 13px; padding: 12px; }
