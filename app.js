@@ -867,6 +867,7 @@ function createPickerSignal(host) {
   return host.pickerController.signal;
 }
 async function fetchDiscover(append = false) {
+  let published = false;
   const request = ++state.request;
   const nextPage = append ? state.page + 1 : 1;
   const results = $("#results");
@@ -930,24 +931,58 @@ async function fetchDiscover(append = false) {
       f.trending && state.mode !== "search" ? {page:nextPage} : { ...params, page: nextPage, include_adult: false },
     );
     if (request !== state.request || !results.isConnected) return;
-    state.page = nextPage;
-    state.total = Math.min(data.total_pages || 1, 500);
-    let movies = data.results.filter(movie => !movie.adult);
-    if (f.trending && state.mode !== "search" && (state.viewingMode !== "all" || providerIds.length)) {
-      const types = state.viewingMode === "buy-rent" ? ["rent","buy"] : state.viewingMode === "all" ? ["flatrate","free","ads","rent","buy"] : ["flatrate","free","ads"];
-      const available = await Promise.all(movies.map(async movie => {
-        const detail = await loadMovieDetails(movie);
-        const offers = detail["watch/providers"]?.results?.[f.watch_region || state.streamingRegion];
-        return types.some(type => offers?.[type]?.some(provider => !providerIds.length || providerIds.includes(provider.provider_id)));
-      }));
-      movies = movies.filter((_,i) => available[i]);
-    }
+    let lastPage = nextPage;
+    const totalPages = Math.min(data.total_pages || 1, 500);
+    const trending = f.trending && state.mode !== "search";
+    const types = state.viewingMode === "buy-rent" ? ["rent","buy"] : state.viewingMode === "all" ? ["flatrate","free","ads","rent","buy"] : ["flatrate","free","ads"];
+    const selectMovies = async batch => {
+      let movies = batch.filter(movie => !movie.adult);
+      if (trending && (state.viewingMode !== "all" || providerIds.length)) {
+        const available = await Promise.all(movies.map(async movie => {
+          const detail = await loadMovieDetails(movie);
+          const offers = detail["watch/providers"]?.results?.[f.watch_region || state.streamingRegion];
+          return types.some(type => offers?.[type]?.some(provider => !providerIds.length || providerIds.includes(provider.provider_id)));
+        }));
+        movies = movies.filter((_,i) => available[i]);
+      }
+      return movies;
+    };
+    const previous = append ? state.results : [];
+    let movies = await selectMovies(data.results);
+    const publish = () => {
+      published = true;
+      state.page = lastPage;
+      state.total = totalPages;
+      state.results = [...previous, ...movies].filter((movie,i,list) => list.findIndex(other=>other.id===movie.id)===i);
+      renderResults();
+    };
     if (request !== state.request || !results.isConnected) return;
-    state.results = append ? [...state.results, ...movies] : movies;
-    renderResults();
+    publish();
+    // Availability often removes most of a trending page. Fill at least two
+    // desktop rows, preserving rank and bounding the number of detail requests.
+    const watched = new Set(state.movies.filter(m=>m.watched).map(m=>String(m.movies.tmdb_id)));
+    const visibleCount = () => movies.filter(m=>!f.hideWatched || !watched.has(String(m.id))).length;
+    try {
+      while (trending && visibleCount()<12 && lastPage<totalPages && lastPage<nextPage+2) {
+        const moreButton = $("#load-more");
+        moreButton.disabled = true;
+        moreButton.textContent = "Finding more matches…";
+        const more = await tmdb("trending/movie/week", {page:lastPage+1});
+        const matches = await selectMovies(more.results);
+        if (request !== state.request || !results.isConnected) return;
+        ++lastPage;
+        movies = [...movies,...matches].filter((movie,i,list)=>list.findIndex(other=>other.id===movie.id)===i);
+        publish();
+      }
+    } finally {
+      if (request === state.request && results.isConnected) {
+        $("#load-more").disabled = false;
+        $("#load-more").textContent = "Load more movies";
+      }
+    }
   } catch (e) {
     if (request === state.request && results.isConnected) {
-      if (!append)
+      if (!append && !published)
         results.innerHTML = empty(
           "An intermission.",
           e.message,
