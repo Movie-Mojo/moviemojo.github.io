@@ -593,7 +593,7 @@ const fixture = {
     ),
   );
   await page.locator("#results .movie-card").click();
-  await page.getByRole("heading", { name: "Inception", exact: true }).waitFor();
+  await page.locator("#modal-content").getByRole("heading", { name: "Inception", exact: true }).waitFor();
   await page.locator(".movie-links .movie-link").first().waitFor();
   for (const width of [320, 375, 390, 430]) {
     await page.setViewportSize({width,height:844});
@@ -677,6 +677,11 @@ const fixture = {
   await page.waitForFunction(
     () => testData.user.user_metadata.mojo_invite === null,
   );
+  await page.emulateMedia({reducedMotion:"reduce"});
+  await page.locator(".movie-card").first().click();
+  await page.locator("#modal-content h2").first().waitFor();
+  assert.equal(await page.locator("dialog").evaluate(el => getComputedStyle(el).animationName), "none");
+  assert.equal(await page.locator(".movie-card").first().evaluate(el => getComputedStyle(el).animationName), "none");
   assert.equal(errors.length, 0, errors.join("\n"));
   console.log(
     "PASS: mobile overflow, watchlist separation, picker excludes watched, mark watched, saved/reloaded streaming profiles, multi-select and My services filters, provider search, year ranges, title search, details, invites, desktop layout, no JS errors.",

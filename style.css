@@ -1045,3 +1045,24 @@ textarea:focus {
 .quick-movie-actions .button, .quick-movie-actions select { margin: 0; }
 .quick-transfer { display: flex; gap: 10px; }
 .quick-transfer .button { flex: 1; }
+
+/* Brief motion cues; layouts and scrolling remain stable. */
+@media (prefers-reduced-motion: no-preference) {
+  dialog[open] { animation: modal-arrive 180ms cubic-bezier(.2,.7,.2,1); }
+  dialog[open]::backdrop { animation: soft-appear 180ms ease-out; }
+  #modal-content { animation: soft-appear 160ms ease-out; }
+  .grid > .movie-card, .grid > .movie-card-wrap { animation: soft-appear 220ms ease-out; }
+  #toast { animation: toast-arrive 180ms ease-out; }
+  .pill, .availability-switch button, nav button, .movie-link, .watch-offer, .close {
+    transition: background-color 160ms ease, color 160ms ease, border-color 160ms ease, opacity 160ms ease;
+  }
+  input, select, textarea { transition: border-color 160ms ease, background-color 160ms ease; }
+  .movie-link:active, .close:active { opacity: .7; }
+}
+@media (hover: hover) and (prefers-reduced-motion: no-preference) {
+  .movie-card .poster-wrap { transition: box-shadow 180ms ease; }
+  .movie-card:hover .poster-wrap { box-shadow: 0 10px 26px #0005; }
+}
+@keyframes soft-appear { from { opacity: 0; } to { opacity: 1; } }
+@keyframes modal-arrive { from { opacity: 0; transform: translateY(6px) scale(.99); } to { opacity: 1; transform: none; } }
+@keyframes toast-arrive { from { opacity: 0; transform: translate(-50%, 5px); } to { opacity: 1; transform: translateX(-50%); } }
