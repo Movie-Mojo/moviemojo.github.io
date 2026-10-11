@@ -945,3 +945,32 @@ textarea:focus {
   outline: 2px solid #b5a0ff;
   outline-offset: 2px;
 }
+
+.movie-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 14px 0 18px;
+}
+.movie-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 44px;
+  padding: 0 12px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: #ffffff06;
+  color: #e4d9ff;
+  font-size: 12px;
+  font-weight: 600;
+  text-decoration: none;
+}
+.movie-link:hover {
+  background: #b5a0ff20;
+  border-color: var(--accent);
+}
+.movie-link:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
