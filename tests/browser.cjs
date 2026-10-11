@@ -94,7 +94,13 @@ const fixture = {
                 ],
                 error: null,
               };
-            if (name === "mojo_social") {
+            if(name === "mojo_watched_profile") {
+ if(args.action==='remove')fixture.historyRemoved=true;
+ if(args.action==='restore')fixture.historyRemoved=false;
+ const movie={id:'history1',title:'Arrival',release_year:2016};
+ return {data:{name:'Sam',movies:fixture.historyRemoved?[]:[movie],excluded:args.person===fixture.user.id&&fixture.historyRemoved?[movie]:[]},error:null};
+ }
+ if (name === "mojo_social") {
               fixture.socialCalls = (fixture.socialCalls || []).concat(args);
               return {
                 data: {
@@ -282,7 +288,15 @@ const fixture = {
     () => document.querySelectorAll(".movie-card").length === 1,
   );
   await page.locator("[data-tab=profile]").click();
-  await page.locator("#display-name").fill("Alex");
+  await page.locator('#my-watched-history').click();
+ await page.getByRole('heading',{name:'Arrival',exact:true}).waitFor();
+ await page.locator('[data-history=remove]').click();
+ await page.getByText('No watched movies yet.',{exact:true}).waitFor();
+ await page.locator('#modal-content details summary').click();
+ await page.locator('[data-history=restore]').click();
+ await page.getByRole('heading',{name:'Arrival',exact:true}).waitFor();
+ await page.locator('#close-modal').click();
+ await page.locator("#display-name").fill("Alex");
   await page.locator("#display-name-form button").click();
   await page.waitForFunction(() => testData.displayName === "Alex");
   await page.locator("#profile-services summary").click();
@@ -322,6 +336,7 @@ const fixture = {
       urls.filter((u) => u.includes("/discover/movie")).at(-1),
     ).searchParams.get("with_runtime.lte") === "90",
   );
+  await page.locator("details.filters > summary").click();
   await page.locator("#discovery-services summary").click();
   await page.locator("#use-my-services").check();
   await page.locator("#year-from").fill("2000");
@@ -432,6 +447,10 @@ const fixture = {
   await page.locator("[data-tab=friends]").click();
   await page.getByRole("heading", { name: "Friends.", exact: true }).waitFor();
   await page.getByRole("heading", { name: "Sam", exact: true }).waitFor();
+ await page.locator('[data-history-person]').click();
+ await page.getByRole('heading',{name:'Arrival',exact:true}).waitFor();
+ assert.equal(await page.locator('[data-history]').count(),0);
+ await page.locator('#close-modal').click();
   await page
     .locator("#friend-code")
     .fill("44444444-4444-4444-4444-444444444444");

@@ -846,3 +846,30 @@ textarea:focus {
 .group-buttons .button {
   padding: 10px 12px;
 }
+
+.history-list {
+  display: grid;
+  gap: 16px;
+  margin: 24px 0;
+}
+.history-movie {
+  display: flex;
+  gap: 16px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--line);
+}
+.history-movie img {
+  width: 64px;
+  height: 96px;
+  object-fit: cover;
+  border-radius: 8px;
+}
+.history-movie > div {
+  min-width: 0;
+}
+.history-movie h3 {
+  overflow-wrap: anywhere;
+}
+.history-movie .link-button {
+  text-align: left;
+}

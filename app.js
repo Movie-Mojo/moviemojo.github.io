@@ -858,18 +858,60 @@ function manualAdd() {
 async function social(action = "list", target = null, gid = null) {
   return checked(await db.rpc("mojo_social", { action, target, gid }));
 }
+async function watchedProfile(person) {
+  const own = person === state.user.id;
+  const data = checked(await db.rpc("mojo_watched_profile", { person }));
+  const rows = (list, removed = false) =>
+    list
+      .map(
+        (m) =>
+          `<div class="history-movie">${m.poster_url ? `<img src="${esc(m.poster_url)}" alt="" loading="lazy">` : ""}<div><h3>${esc(m.title)}</h3><p class="muted">${esc(m.release_year || "")}</p>${own ? `<button class="link-button" data-history="${removed ? "restore" : "remove"}" data-movie="${m.id}">${removed ? "Restore to my history" : "I didn’t watch this — remove"}</button>` : ""}</div></div>`,
+      )
+      .join("");
+  openModal(
+    `<p class="eyebrow">Movie memories</p><h2>${own ? "Your watched movies" : esc(data.name) + "’s watched movies"}</h2><p class="muted">${own ? "Movies marked watched in your groups appear here and are visible to your friends. Remove any you missed; the group’s list stays unchanged." : "Movies watched across their groups, with their personal exceptions applied."}</p><div class="history-list">${rows(data.movies) || '<p class="muted">No watched movies yet.</p>'}</div>${own && data.excluded.length ? `<details><summary>Removed from my history (${data.excluded.length})</summary>${rows(data.excluded, true)}</details>` : ""}`,
+  );
+  $("#modal-content")
+    .querySelectorAll("[data-history]")
+    .forEach(
+      (b) =>
+        (b.onclick = () =>
+          run(b, async () => {
+            checked(
+              await db.rpc("mojo_watched_profile", {
+                person,
+                action: b.dataset.history,
+                movie: b.dataset.movie,
+              }),
+            );
+            await watchedProfile(person);
+            toast(
+              b.dataset.history === "remove"
+                ? "Removed from your history."
+                : "Restored to your history.",
+            );
+          })),
+    );
+}
 async function friends() {
   app.innerHTML =
     '<p class="eyebrow">Your movie people</p><h1>Friends.</h1><p class="muted">Loading friends…</p>';
   try {
     const data = await social();
     if (state.tab !== "friends") return;
-    app.innerHTML = `<p class="eyebrow">Your movie people</p><h1>Friends.</h1><p class="subtitle">Find your people. Plan your next movie night.</p><div class="form-panel"><h3>Your friend code</h3><p class="muted">Share this with a friend. Set your display name in Profile so they recognize you.</p><input readonly value="${state.user.id}" aria-label="Your friend code"><button id="copy-friend" class="button secondary">Copy friend code</button></div><div class="form-panel"><h3>Add a friend</h3><form id="friend-request"><input id="friend-code" placeholder="Paste their friend code" required aria-label="Friend code"><button class="button">Send request</button></form></div><h2>Group invitations</h2>${data.invitations.map((i) => `<div class="form-panel"><h3>${esc(i.group)}</h3><p>${esc(i.sender)} invited you</p><button class="button" data-social="join" data-target="${i.id}">Accept invitation</button><button class="button secondary" data-social="decline" data-target="${i.id}">Decline</button></div>`).join("") || '<p class="muted">No pending group invitations.</p>'}<h2>Your friends & requests</h2>${data.friends.map((f) => `<div class="form-panel"><h3>${esc(f.name)}</h3>${f.accepted ? '<p class="muted">Friends</p>' : `<p class="muted">${f.incoming ? "Wants to be your friend" : "Request sent"}</p>`}${!f.accepted && f.incoming ? `<button class="button" data-social="accept" data-target="${f.id}">Accept request</button>` : ""}<button class="button secondary" data-social="remove" data-target="${f.id}">${f.accepted ? "Remove friend" : f.incoming ? "Decline request" : "Cancel request"}</button></div>`).join("") || '<p class="muted">Add your first movie friend above.</p>'}<button id="refresh-friends" class="button secondary">Refresh friends</button>`;
+    app.innerHTML = `<p class="eyebrow">Your movie people</p><h1>Friends.</h1><p class="subtitle">Find your people. Plan your next movie night.</p><div class="form-panel"><h3>Your friend code</h3><p class="muted">Share this with a friend. Set your display name in Profile so they recognize you.</p><input readonly value="${state.user.id}" aria-label="Your friend code"><button id="copy-friend" class="button secondary">Copy friend code</button></div><div class="form-panel"><h3>Add a friend</h3><form id="friend-request"><input id="friend-code" placeholder="Paste their friend code" required aria-label="Friend code"><button class="button">Send request</button></form></div><h2>Group invitations</h2>${data.invitations.map((i) => `<div class="form-panel"><h3>${esc(i.group)}</h3><p>${esc(i.sender)} invited you</p><button class="button" data-social="join" data-target="${i.id}">Accept invitation</button><button class="button secondary" data-social="decline" data-target="${i.id}">Decline</button></div>`).join("") || '<p class="muted">No pending group invitations.</p>'}<h2>Your friends & requests</h2>${data.friends.map((f) => `<div class="form-panel"><h3>${esc(f.name)}</h3>${f.accepted ? `<p class="muted">Friends</p><button class="button secondary" data-history-person="${f.id}">Watched movies</button>` : `<p class="muted">${f.incoming ? "Wants to be your friend" : "Request sent"}</p>`}${!f.accepted && f.incoming ? `<button class="button" data-social="accept" data-target="${f.id}">Accept request</button>` : ""}<button class="button secondary" data-social="remove" data-target="${f.id}">${f.accepted ? "Remove friend" : f.incoming ? "Decline request" : "Cancel request"}</button></div>`).join("") || '<p class="muted">Add your first movie friend above.</p>'}<button id="refresh-friends" class="button secondary">Refresh friends</button>`;
     $("#copy-friend").onclick = (e) =>
       run(e.currentTarget, async () => {
         await navigator.clipboard.writeText(state.user.id);
         toast("Friend code copied.");
       });
+    app
+      .querySelectorAll("[data-history-person]")
+      .forEach(
+        (b) =>
+          (b.onclick = () =>
+            run(b, () => watchedProfile(b.dataset.historyPerson))),
+      );
     $("#refresh-friends").onclick = () => friends();
     $("#friend-request").onsubmit = (e) => {
       e.preventDefault();
@@ -1006,7 +1048,9 @@ function groups() {
   };
 }
 function profile() {
-  app.innerHTML = `<div class="profile"><p class="eyebrow">Your corner of the cinema</p><h1>Hey, movie lover.</h1><p class="subtitle">${esc(state.user.email)}</p><div class="form-panel"><h3>Your name</h3><p class="muted">Shown to your groups when you suggest a movie.</p><form id="display-name-form"><input id="display-name" aria-label="Your display name" maxlength="60" value="${esc(state.displayName)}" placeholder="What should your friends call you?" required><button class="button" type="submit">Save name</button></form></div><div class="form-panel"><h3>Your streaming services</h3><p class="muted">Save the services you have, then choose “My streaming services” in Discover.</p><form id="streaming-profile" class="streaming-profile"><div><label for="profile-region">Country</label><select id="profile-region"><option value="US">United States</option><option value="GB">United Kingdom</option><option value="CA">Canada</option><option value="AU">Australia</option></select></div><div id="profile-services"></div><button class="button" type="submit">Save streaming services</button></form></div><div class="form-panel"><h3>Movie Mojo, on your home screen</h3><p class="muted">On iPhone: open in Safari, tap Share, then Add to Home Screen. On Android: use your browser's Install app option.</p></div><div class="form-panel"><h3>Your current watchlist</h3><p class="muted">${esc(state.group?.group_name || "No watchlist selected")}</p>${state.group ? `<button id="leave-group" class="button danger">${state.group.created_by === state.user.id ? "Delete watchlist" : "Leave group"}</button>` : ""}</div><button class="button secondary" id="refresh-data">Refresh watchlists</button><button class="button secondary" id="logout">Sign out</button><p class="muted">Movie information provided by TMDB. Streaming availability provided by JustWatch via TMDB. This product uses the TMDB API but is not endorsed or certified by TMDB.</p></div>`;
+  app.innerHTML = `<div class="profile"><p class="eyebrow">Your corner of the cinema</p><h1>Hey, movie lover.</h1><p class="subtitle">${esc(state.user.email)}</p><div class="form-panel"><h3>Your watched movies</h3><p class="muted">See your history and remove movies you missed.</p><button id="my-watched-history" class="button secondary">Manage watched history</button></div><div class="form-panel"><h3>Your name</h3><p class="muted">Shown to your groups when you suggest a movie.</p><form id="display-name-form"><input id="display-name" aria-label="Your display name" maxlength="60" value="${esc(state.displayName)}" placeholder="What should your friends call you?" required><button class="button" type="submit">Save name</button></form></div><div class="form-panel"><h3>Your streaming services</h3><p class="muted">Save the services you have, then choose “My streaming services” in Discover.</p><form id="streaming-profile" class="streaming-profile"><div><label for="profile-region">Country</label><select id="profile-region"><option value="US">United States</option><option value="GB">United Kingdom</option><option value="CA">Canada</option><option value="AU">Australia</option></select></div><div id="profile-services"></div><button class="button" type="submit">Save streaming services</button></form></div><div class="form-panel"><h3>Movie Mojo, on your home screen</h3><p class="muted">On iPhone: open in Safari, tap Share, then Add to Home Screen. On Android: use your browser's Install app option.</p></div><div class="form-panel"><h3>Your current watchlist</h3><p class="muted">${esc(state.group?.group_name || "No watchlist selected")}</p>${state.group ? `<button id="leave-group" class="button danger">${state.group.created_by === state.user.id ? "Delete watchlist" : "Leave group"}</button>` : ""}</div><button class="button secondary" id="refresh-data">Refresh watchlists</button><button class="button secondary" id="logout">Sign out</button><p class="muted">Movie information provided by TMDB. Streaming availability provided by JustWatch via TMDB. This product uses the TMDB API but is not endorsed or certified by TMDB.</p></div>`;
+  $("#my-watched-history").onclick = (e) =>
+    run(e.currentTarget, () => watchedProfile(state.user.id));
   $("#display-name-form").onsubmit = (e) => {
     e.preventDefault();
     run($("#display-name-form button"), async () => {
