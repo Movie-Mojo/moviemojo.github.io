@@ -1010,3 +1010,13 @@ textarea:focus {
 .movie-credits a { color: var(--accent); }
 .tmdb-credit { display: inline-block; margin: 8px 0; }
 .tmdb-credit img { display: block; width: 130px; height: auto; }
+
+.movie-save { clear: both; margin: 18px 0; padding: 14px; border: 1px solid var(--line); border-radius: 14px; background: #ffffff04; }
+.movie-save > label { display: block; margin-bottom: 8px; font-size: 13px; color: var(--muted); }
+.movie-save-row { display: flex; align-items: center; gap: 10px; }
+.movie-save-row select { flex: 1; min-width: 0; width: 0; margin: 0; text-overflow: ellipsis; }
+.movie-save-row .button { flex-shrink: 0; margin: 0; padding: 12px 20px; }
+.save-note { margin-top: 10px; font-size: 13px; color: var(--muted); }
+.save-note summary { cursor: pointer; }
+.save-note label { display: block; margin: 12px 0 6px; }
+.save-note textarea { width: 100%; resize: vertical; }
