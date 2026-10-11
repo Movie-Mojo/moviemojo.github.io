@@ -985,3 +985,14 @@ textarea:focus {
   stroke-linejoin: round;
   flex-shrink: 0;
 }
+
+.offer-link-icon {
+  width: 13px;
+  height: 13px;
+  vertical-align: -2px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
