@@ -29,7 +29,7 @@ For local preview: `python3 -m http.server 8765`.
 
 `database-streaming.sql` adds private streaming preferences with column-limited profile updates; approval remains admin-only.
 
-`database-revamp.sql` records the schema/access changes applied for this release. It preserves existing lists, movies, accounts, and ratings. Approved users can access only groups they belong to; only creators can delete groups. Internal privileged functions live in `mojo_private`, which must remain outside the exposed Data API schemas. Public wrappers run as invoker. Account approvals remain an admin operation in the Supabase dashboard.
+`database-revamp.sql` records the schema/access changes applied for this release. It preserves existing lists, movies, accounts, and ratings. Approved users can access only groups they belong to; only creators can delete groups. Internal privileged functions live in `mojo_private`, which must remain outside the exposed Data API schemas. Public wrappers run as invoker. Email-verified accounts are automatically approved by `database-auto-approval.sql`. Enable Confirm email in Supabase Auth; membership checks still protect private groups.
 
 `mojo_create_group`, `mojo_join_group`, and `mojo_delete_group` perform group changes atomically. Invite codes are the group's UUID, so treat them like invitations and share only with intended members.
 

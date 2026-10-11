@@ -2,6 +2,7 @@ begin;
 create temp table suggestion_test(a uuid,b uuid,g uuid,m uuid,e uuid);
 insert into suggestion_test values(gen_random_uuid(),gen_random_uuid(),null,null,null);
 insert into auth.users(id,email) select a,'suggestion-a@example.invalid' from suggestion_test union all select b,'suggestion-b@example.invalid' from suggestion_test;
+update auth.users set email_confirmed_at=now() where email like '%example.invalid';
 update public.user_profiles set approved=true where id in(select a from suggestion_test union select b from suggestion_test);
 select set_config('request.jwt.claim.sub',(select a::text from suggestion_test),true);
 update suggestion_test set g=mojo_private.create_group('Suggestion QA');

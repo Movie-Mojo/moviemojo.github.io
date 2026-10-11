@@ -2,6 +2,7 @@ begin;
 create temp table mojo_test_ids (a uuid,b uuid,g uuid,h uuid);
 insert into mojo_test_ids values(gen_random_uuid(),gen_random_uuid(),null,null);
 insert into auth.users(id,email) select a,'mojo-test-a@example.invalid' from mojo_test_ids union all select b,'mojo-test-b@example.invalid' from mojo_test_ids;
+update auth.users set email_confirmed_at=now() where email like '%example.invalid';
 update public.user_profiles set approved=true where id in(select a from mojo_test_ids union select b from mojo_test_ids);
 select set_config('request.jwt.claim.sub',(select a::text from mojo_test_ids),true);
 update mojo_test_ids set g=mojo_private.create_group('Mojo transactional QA');
