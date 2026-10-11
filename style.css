@@ -873,3 +873,45 @@ textarea:focus {
 .history-movie .link-button {
   text-align: left;
 }
+
+.watch-options {
+  margin: 24px 0;
+  padding: 20px 0;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+}
+.watch-options-section {
+  margin-top: 20px;
+}
+.watch-offers {
+  display: grid;
+  gap: 10px;
+}
+.watch-offer {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  background: var(--panel, #201d2c);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 12px;
+  text-decoration: none;
+  color: inherit;
+}
+.watch-offer img {
+  width: 40px;
+  height: 40px;
+  object-fit: contain;
+  border-radius: 8px;
+}
+.watch-offer span {
+  display: grid;
+  gap: 4px;
+}
+.watch-offer small {
+  color: #aaa1ba;
+}
+.watch-offer:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
