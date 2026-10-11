@@ -8,7 +8,7 @@ A mobile-first movie-night app for private friend groups, hosted on GitHub Pages
 - Equal-chance random picker from the selected group's unwatched movies.
 - Title search and catalog discovery by genre, release dates, audience score, runtime, subscription streaming provider, and country. Title search and catalog filters are separate modes.
 - Movie details, trailers, IMDb links, and streaming availability via TMDB / JustWatch.
-- Streaming services saved in your profile with a country setting, searchable multi-select discovery filters, and a “My streaming services” shortcut. Multiple services match movies available on any selection. The chooser shows up to 25 major service families available in the selected country; choosing a family includes its plan and channel variants. Subscription, free, and ad-supported streaming are included.
+- Streaming services saved in your profile with a country setting, searchable multi-select discovery filters, and a “My streaming services” shortcut. Multiple services match movies available on any selection. The chooser shows up to 25 major service families available in the selected country; choosing a family includes its plan and channel variants. Searching the chooser uses the full regional catalog, including services outside the default list. Any streaming service applies no provider restriction. Subscription, free, and ad-supported streaming are included.
 - Compact release-year range with From and To controls.
 - Personal lists use the same group model; invite friends whenever you want to share.
 - Account approval, group invitations, checked write errors, and safe text rendering.

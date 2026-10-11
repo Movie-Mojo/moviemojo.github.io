@@ -414,23 +414,45 @@ const serviceFamilies = [
   ["Stan", /^stan\b/i],
   ["Crave", /^crave\b/i],
 ];
-function groupedProviders(providers) {
-  return serviceFamilies
-    .map(([name, pattern]) => {
-      const variants = providers.filter((p) => pattern.test(p.provider_name));
-      if (!variants.length) return null;
-      const primary =
-        variants.find(
-          (p) => p.provider_name.toLowerCase() === name.toLowerCase(),
-        ) || variants[0];
-      return {
-        ...primary,
-        provider_name: name,
-        variantIds: variants.map((p) => p.provider_id),
-      };
-    })
-    .filter(Boolean)
-    .slice(0, 25);
+function serviceIdentity(provider) {
+  const family = serviceFamilies.find(([, pattern]) =>
+    pattern.test(provider.provider_name),
+  );
+  if (family) return family[0];
+  return provider.provider_name
+    .replace(
+      /\s+(amazon channel|amazon channels|apple tv channel|apple tv channels|roku premium channel|with ads|with advertisement|ad-supported|ad supported|premium|standard)$/gi,
+      "",
+    )
+    .trim();
+}
+function groupedProviders(providers, includeAll = false) {
+  const groups = new Map();
+  for (const provider of providers) {
+    const identity = serviceIdentity(provider);
+    const key = identity.toLowerCase();
+    if (!groups.has(key))
+      groups.set(key, {
+        ...provider,
+        provider_name: identity,
+        variantIds: [],
+        searchNames: [],
+      });
+    const group = groups.get(key);
+    group.variantIds.push(provider.provider_id);
+    group.searchNames.push(provider.provider_name.toLowerCase());
+  }
+  const major = serviceFamilies
+    .map(([name]) => groups.get(name.toLowerCase()))
+    .filter(Boolean);
+  if (!includeAll) return major.slice(0, 25);
+  const majorNames = new Set(major.map((p) => p.provider_name.toLowerCase()));
+  return [
+    ...major,
+    ...[...groups.values()]
+      .filter((p) => !majorNames.has(p.provider_name.toLowerCase()))
+      .sort((a, b) => a.provider_name.localeCompare(b.provider_name)),
+  ];
 }
 async function providersForRegion(region) {
   if (!providerCache.has(region)) {
@@ -445,11 +467,9 @@ async function expandServiceIds(ids, region) {
   if (!ids.length) return [];
   const selected = new Set(ids.map(Number));
   const providers = await providersForRegion("all");
-  // Keep existing saved IDs usable, and expand any recognized family.
-  for (const [, pattern] of serviceFamilies) {
-    const variants = providers.filter((p) => pattern.test(p.provider_name));
-    if (variants.some((p) => selected.has(p.provider_id)))
-      variants.forEach((p) => selected.add(p.provider_id));
+  for (const group of groupedProviders(providers, true)) {
+    if (group.variantIds.some((id) => selected.has(id)))
+      group.variantIds.forEach((id) => selected.add(id));
   }
   return [...selected];
 }
@@ -462,23 +482,22 @@ async function loadProviders(region, target, selected = [], useMy = false) {
   host.innerHTML = '<p class="muted">Loading services…</p>';
   const isDiscovery = target === "discovery-services";
   try {
-    const providers = groupedProviders(await providersForRegion(region));
+    const regionalProviders = await providersForRegion(region);
+    const providers = groupedProviders(regionalProviders, true);
+    const defaultIds = new Set(
+      groupedProviders(regionalProviders).map((p) => p.provider_id),
+    );
     if (!host.isConnected || host.requestToken !== token) return;
     const name = isDiscovery ? "discovery-provider" : "profile-provider";
     const selectedSet = new Set(selected.map(Number));
     const catalog = await providersForRegion("all");
     if (!host.isConnected || host.requestToken !== token) return;
     const selectedFamilies = new Set(
-      serviceFamilies
-        .filter(([, pattern]) =>
-          catalog.some(
-            (p) =>
-              selectedSet.has(p.provider_id) && pattern.test(p.provider_name),
-          ),
-        )
-        .map(([name]) => name),
+      catalog
+        .filter((p) => selectedSet.has(p.provider_id))
+        .map((p) => serviceIdentity(p).toLowerCase()),
     );
-    host.innerHTML = `<details class="service-picker"><summary><span class="service-summary">${isDiscovery ? "Any streaming service" : "Choose your services"}</span></summary><div class="service-options">${isDiscovery ? `<label class="service-option my-services"><input id="use-my-services" type="checkbox" ${useMy ? "checked" : ""}><span>My streaming services<small>${state.streamingServices.length ? state.streamingServices.length + " saved in Profile" : "Add services in Profile first"}</small></span></label>` : ""}<input class="provider-search" type="search" placeholder="Find a service…" aria-label="Find a streaming service"><div class="provider-list-options">${providers.map((p) => `<label class="service-option" data-provider-name="${esc(p.provider_name.toLowerCase())}"><input type="checkbox" name="${name}" value="${p.provider_id}" ${p.variantIds.some((id) => selectedSet.has(id)) || selectedFamilies.has(p.provider_name) ? "checked" : ""}>${p.logo_path ? `<img src="${image(p.logo_path)}" alt="" loading="lazy">` : ""}<span>${esc(p.provider_name)}</span></label>`).join("")}</div><p class="provider-empty muted" hidden>No services match that name.</p></div></details>`;
+    host.innerHTML = `<details class="service-picker"><summary><span class="service-summary">${isDiscovery ? "Any streaming service" : "Choose your services"}</span></summary><div class="service-options">${isDiscovery ? `<label class="service-option my-services"><input id="use-my-services" type="checkbox" ${useMy ? "checked" : ""}><span>My streaming services<small>${state.streamingServices.length ? state.streamingServices.length + " saved in Profile" : "Add services in Profile first"}</small></span></label>` : ""}<input class="provider-search" type="search" placeholder="Find a service…" aria-label="Find a streaming service"><div class="provider-list-options">${providers.map((p) => `<label class="service-option" data-provider-name="${esc(p.provider_name.toLowerCase())}" data-search-names="${esc(p.searchNames.join(" "))}" data-default="${defaultIds.has(p.provider_id)}"><input type="checkbox" name="${name}" value="${p.provider_id}" ${p.variantIds.some((id) => selectedSet.has(id)) || selectedFamilies.has(p.provider_name.toLowerCase()) ? "checked" : ""}>${p.logo_path ? `<img src="${image(p.logo_path)}" alt="" loading="lazy">` : ""}<span>${esc(p.provider_name)}</span></label>`).join("")}</div><p class="provider-empty muted" hidden>No services match that name.</p></div></details>`;
     const updateSummary = () => {
       const count = host.querySelectorAll(
         `input[name="${name}"]:checked`,
@@ -496,15 +515,23 @@ async function loadProviders(region, target, selected = [], useMy = false) {
       signal: createPickerSignal(host),
     });
     updateSummary();
-    $(".provider-search", host).oninput = (e) => {
+    const filterRows = () => {
+      const e = { target: $(".provider-search", host) };
       const query = e.target.value.trim().toLowerCase();
       let visible = 0;
       host.querySelectorAll("[data-provider-name]").forEach((row) => {
-        row.hidden = !row.dataset.providerName.includes(query);
+        row.hidden = query
+          ? !row.dataset.searchNames.includes(query)
+          : row.dataset.default !== "true" && !$("input", row).checked;
         if (!row.hidden) visible++;
       });
       $(".provider-empty", host).hidden = visible > 0;
     };
+    $(".provider-search", host).oninput = filterRows;
+    host.addEventListener("change", filterRows, {
+      signal: host.pickerController.signal,
+    });
+    filterRows();
   } catch (e) {
     if (!host.isConnected || host.requestToken !== token) return;
     host.innerHTML =
