@@ -337,6 +337,7 @@ const fixture = {
             ],
             total_pages: 2,
           };
+    if (url.pathname.endsWith("/movies/metadata")) data = {results:[{id:155},{id:27205,release_date:"2010-07-16",vote_average:8.4,vote_count:100,genres:[{name:"Action"}]},{id:157336,release_date:"2014-11-07",vote_average:9,vote_count:100,genres:[{name:"Science Fiction"}]}]};
     if (url.pathname.includes("/trending/")) data.results.forEach(movie => movie.watch_availability = {US:{flatrate:[{provider_id:8},{provider_id:9}],rent:[{provider_id:8}],buy:[{provider_id:8}]}});
     r.fulfill({ json: data });
   });
@@ -358,6 +359,20 @@ const fixture = {
   );
   assert.equal(await page.locator(".movie-card-wrap").evaluateAll(cards => cards.some(card => [...card.childNodes].some(n => n.nodeType === 3 && n.textContent.trim()))), false, "no stray text outside card buttons");
   assert.equal(await page.locator(".movie-card").first().textContent().then(t=>t.includes("}")), false);
+  await page.locator("#watch-sort").click();
+  await page.locator('[data-watch-sort="name"]').click();
+  assert.equal(await page.locator(".movie-card h3").first().textContent(),"Inception");
+  await page.locator("#watch-reverse").click();
+  assert.equal(await page.locator(".movie-card h3").first().textContent(),"Interstellar");
+  for(const key of ["date","rating","genre"]) {
+    await page.locator("#watch-sort").click();
+    await page.locator(`[data-watch-sort="${key}"]`).click();
+    await page.locator("#close-modal").waitFor({state:"hidden"});
+    assert.equal(await page.locator(".movie-card h3").first().textContent(),key==="rating" ? "Interstellar" : "Inception");
+  }
+  assert.equal(urls.filter(u=>u.includes("/movies/metadata")).length,1,"sort metadata should be fetched once and reused");
+  await page.locator("#watch-sort").click();
+  await page.locator('[data-watch-sort="added"]').click();
   const firstCard = page.locator(".movie-card").first();
   await firstCard.dispatchEvent("pointerdown", {button:0,isPrimary:true,clientX:40,clientY:40});
   await firstCard.dispatchEvent("pointermove", {clientX:40,clientY:80});
