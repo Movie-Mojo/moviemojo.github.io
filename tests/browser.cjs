@@ -186,7 +186,8 @@ const fixture = {
               select() {
                 return chain;
               },
-              eq() {
+              eq(key,value) {
+                if(key === "movie_id") chain.duplicateCheck = true;
                 return chain;
               },
               order() {
@@ -215,11 +216,13 @@ const fixture = {
                     fixture.services = value.streaming_services;
                   if (value.display_name)
                     fixture.displayName = value.display_name;
-                } else fixture.movies[0].watched = value.watched;
+                } else if (value.group_id) fixture.lastMove = value;
+                else fixture.movies[0].watched = value.watched;
                 chain.changed = true;
                 return chain;
               },
-              insert() {
+              insert(value) {
+                fixture.lastCopy = value;
                 return chain;
               },
               delete() {
@@ -227,7 +230,7 @@ const fixture = {
               },
               then(resolve) {
                 return Promise.resolve({
-                  data: chain.changed
+                  data: chain.duplicateCheck ? [] : chain.changed
                     ? [{ id: "list1" }]
                     : table === "group_movies"
                       ? fixture.movies
@@ -352,7 +355,28 @@ const fixture = {
       .textContent()
       .then((t) => t.includes("Friend")),
   );
-  await page.locator(".movie-card").first().click();
+  const firstCard = page.locator(".movie-card").first();
+  await firstCard.dispatchEvent("pointerdown", {button:0,isPrimary:true,clientX:40,clientY:40});
+  await firstCard.dispatchEvent("pointermove", {clientX:40,clientY:80});
+  await page.waitForTimeout(650);
+  assert.equal(await page.locator("#quick-watched").count(),0,"scrolling must cancel long press");
+  await firstCard.dispatchEvent("pointerdown", {button:0,isPrimary:true,clientX:40,clientY:40});
+  await page.locator("#quick-watched").waitFor();
+  await firstCard.dispatchEvent("pointerup");
+  await firstCard.dispatchEvent("click");
+  assert.equal(await page.locator("#quick-watched").count(),1,"release must not open details");
+  await page.screenshot({path:"/tmp/mojo-longpress-menu.png"});
+  await page.locator("#close-modal").click();
+  await page.getByRole("button",{name:"Actions for Inception",exact:true}).click();
+  await page.locator("#quick-copy").click();
+  await page.waitForFunction(() => testData.lastCopy?.movie_id === "m1");
+  assert.equal(await page.evaluate(() => testData.lastCopy.suggestion_note), "A great <movie> to discuss");
+  await page.getByRole("button",{name:"Actions for Inception",exact:true}).click();
+  await page.locator("#quick-move").click();
+  await page.waitForFunction(() => !!testData.lastMove?.group_id);
+  await page.getByRole("button",{name:"Actions for Inception",exact:true}).click();
+  await page.locator("#quick-details").click();
+
   await page
     .getByRole("heading", { name: "With a subscription", exact: true })
     .waitFor();
