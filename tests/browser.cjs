@@ -82,6 +82,18 @@ const fixture = {
             signOut: async () => ({ error: null }),
           },
           rpc: async (name, args) => {
+            if (name === "mojo_group_people")
+              return {
+                data: [
+                  { id: fixture.user.id, name: "Alex", owner: true },
+                  {
+                    id: "55555555-5555-5555-5555-555555555555",
+                    name: "Taylor",
+                    owner: false,
+                  },
+                ],
+                error: null,
+              };
             if (name === "mojo_social") {
               fixture.socialCalls = (fixture.socialCalls || []).concat(args);
               return {
@@ -396,6 +408,17 @@ const fixture = {
   await page.locator("#close-modal").click();
   await page.locator("[data-tab=groups]").click();
   await page.getByRole("heading", { name: "Your movie circles." }).waitFor();
+  await page.locator("[data-members]").click();
+  await page.getByRole("heading", { name: "Taylor", exact: true }).waitFor();
+  await page.getByRole("button", { name: "Add friend", exact: true }).click();
+  await page.waitForFunction(() =>
+    testData.socialCalls.some(
+      (x) =>
+        x.action === "request" &&
+        x.target === "55555555-5555-5555-5555-555555555555",
+    ),
+  );
+  await page.locator("#close-modal").click();
   await page.locator("[data-invite]").click();
   assert.equal(
     await page.locator("#invite-code").inputValue(),
@@ -408,7 +431,7 @@ const fixture = {
   await page.locator("#close-modal").click();
   await page.locator("[data-tab=friends]").click();
   await page.getByRole("heading", { name: "Friends.", exact: true }).waitFor();
-  await page.getByRole("heading", { name:"Sam", exact: true }).waitFor();
+  await page.getByRole("heading", { name: "Sam", exact: true }).waitFor();
   await page
     .locator("#friend-code")
     .fill("44444444-4444-4444-4444-444444444444");
