@@ -86,3 +86,9 @@ Per the user's request, browser/dependency hardening and excess database privile
 - Unit tests, mobile browser regression tests, malicious HTML browser tests, database rollback tests and live missing/anonymous-token denial tests pass. The signed-out live test now expects denied movie access.
 - Required final step: replace the previously exposed TMDB key in Supabase Secrets and revoke the old key at TMDB. Git history and old browser caches retain old copies; current-file removal cannot revoke them.
 - Leaked-password protection still requires a paid Supabase plan. Existing privilege/CSP hardening remains outside this change.
+
+## TMDB key rotation and attribution — October 11, 2026
+
+The user regenerated the TMDB API key. The replacement was transferred directly from TMDB's signed-in API screen to Supabase Edge Function Secrets, with no repository or chat copy. Supabase confirmed the replacement digest and update time. A request with the formerly public key returned HTTP 401.
+
+Signed-in API Overview directs applications to attribute TMDB for movie images/data and use approved logos. Movie Mojo now includes About & credits on Sign In and Profile, an unmodified approved logo linked to TMDB, the required non-endorsement notice, and JustWatch source attribution. Logo rendering and proportions were checked locally.
