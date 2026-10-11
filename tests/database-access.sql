@@ -19,7 +19,7 @@ do $$ declare n int; gid uuid; begin
  select count(*) into n from public.groups where id=current_setting('mojo.test.other')::uuid;
  if n<>0 then raise exception 'Other private group leaked'; end if;
  select count(*) into n from public.get_user_groups_with_counts(current_setting('mojo.test.user')::uuid);
- if n<>1 then raise exception 'Group count RPC failed'; end if;
+ if n<>2 then raise exception 'Group count RPC failed'; end if;
  perform public.mojo_join_group(current_setting('mojo.test.other')::uuid);
  select count(*) into n from public.groups where id=current_setting('mojo.test.other')::uuid;
  if n<>1 then raise exception 'Invited group not visible after join'; end if;
