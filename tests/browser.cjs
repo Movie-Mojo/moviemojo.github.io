@@ -690,6 +690,18 @@ const fixture = {
   await page.locator("#modal-content h2").first().waitFor();
   assert.equal(await page.locator("dialog").evaluate(el => getComputedStyle(el).animationName), "none");
   assert.equal(await page.locator(".movie-card").first().evaluate(el => getComputedStyle(el).animationName), "none");
+  await page.locator("#close-modal").click();
+  await page.emulateMedia({reducedMotion:"no-preference"});
+  await page.evaluate(() => {
+    const grid = document.querySelector(".grid");
+    const card = grid.firstElementChild;
+    for(let i=0;i<15;i++) grid.append(card.cloneNode(true));
+    revealScrollingCards();
+  });
+  assert(await page.locator(".scroll-pending").count()>0,"below-fold rows must wait for scroll");
+  const pending = page.locator(".scroll-pending").first();
+  await pending.evaluate(el=>el.scrollIntoView({block:"center"}));
+  await page.waitForFunction(() => [...document.querySelectorAll(".grid > *")].some(el => el.getAnimations().some(a=>a.effect.getTiming().duration===650)), null, {timeout:3000});
   assert.equal(errors.length, 0, errors.join("\n"));
   console.log(
     "PASS: mobile overflow, watchlist separation, picker excludes watched, mark watched, saved/reloaded streaming profiles, multi-select and My services filters, provider search, year ranges, title search, details, invites, desktop layout, no JS errors.",
