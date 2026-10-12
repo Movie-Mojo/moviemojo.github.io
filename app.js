@@ -129,7 +129,14 @@ async function tmdb(path, params = {}) {
 function movieCredits() {
   return `<section class="movie-credits" aria-label="About and credits"><h2>About & credits</h2><a class="tmdb-credit" href="https://www.themoviedb.org/" target="_blank" rel="noopener"><img src="./assets/tmdb-logo.svg" alt="The Movie Database (TMDB)" width="130" height="11"></a><p>Movie data and images provided by TMDB.</p><p>This product uses the TMDB API but is not endorsed or certified by TMDB.</p><p>Streaming availability provided by <a href="https://www.justwatch.com/" target="_blank" rel="noopener">JustWatch</a> via TMDB.</p></section>`;
 }
+let cancelCardPresses = () => {};
+function closeModal() {
+  cancelCardPresses();
+  modal.getAnimations().forEach(animation => animation.cancel());
+  modal.close();
+}
 function openModal(html, source = null) {
+  cancelCardPresses();
   const start = source?.getBoundingClientRect();
   $("#modal-content").innerHTML = html;
   if (!modal.open) {
@@ -144,10 +151,11 @@ function openModal(html, source = null) {
     }
   }
 }
-modal.addEventListener("close", () => { ++detailRequest; modal.classList.remove("movie-detail-dialog"); });
-$("#close-modal").onclick = () => modal.close();
+modal.addEventListener("cancel", e => { e.preventDefault(); closeModal(); });
+modal.addEventListener("close", () => { if (modal.open) return; ++detailRequest; modal.classList.remove("movie-detail-dialog", "from-card"); });
+$("#close-modal").onclick = () => closeModal();
 modal.addEventListener("click", (e) => {
-  if (e.target === modal) modal.close();
+  if (e.target === modal) closeModal();
 });
 function empty(title, body, action = "") {
   return `<div class="empty"><h3>${esc(title)}</h3><p class="muted">${esc(body)}</p>${action}</div>`;
@@ -161,8 +169,9 @@ function card(movie, index, entry = null) {
   const poster = movie.poster_url || image(movie.poster_path);
   const year = movie.release_year || movie.release_date?.slice(0, 4) || "Year unknown";
   const note = entry?.suggestion_note ? `<p class="card-note">“${esc(entry.suggestion_note)}”</p>` : "";
+  const onList = !entry && state.movies.some(item=>String(item.movies.tmdb_id)===String(movie.id));
   const contributor = entry ? `<p class="added-by">Added by ${esc(contributorName(entry))}</p>${note}` : "";
-  const movieCard = `<button class="movie-card" data-movie="${index}" aria-label="Details for ${esc(movie.title)}"><div class="poster-wrap">${poster ? `<img loading="lazy" src="${esc(poster)}" alt="${esc(movie.title)} poster" onerror="this.hidden=true">` : '<div class="poster-fallback">✦</div>'}${movie.vote_average ? `<span class="score">★ ${Number(movie.vote_average).toFixed(1)}</span>` : ""}</div><h3>${esc(movie.title)}</h3><p>${esc(year)}</p>${contributor}</button>`;
+  const movieCard = `<button class="movie-card" data-movie="${index}" aria-label="Details for ${esc(movie.title)}"><div class="poster-wrap">${poster ? `<img loading="lazy" src="${esc(poster)}" alt="${esc(movie.title)} poster" onerror="this.hidden=true">` : '<div class="poster-fallback">✦</div>'}${movie.vote_average ? `<span class="score">★ ${Number(movie.vote_average).toFixed(1)}</span>` : ""}</div><h3>${esc(movie.title)}</h3><p>${esc(year)}</p>${contributor}${onList ? '<p class="on-list-badge">On this watchlist · Tap for details</p>' : ""}</button>`;
   if (!entry) return movieCard;
   return `<div class="movie-card-wrap">${movieCard}<button class="card-menu-button" data-card-menu="${index}" aria-label="Actions for ${esc(movie.title)}"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/></svg></button></div>`;
 }
@@ -210,23 +219,28 @@ function loadMovieDetails(movie) {
   return movieDetailCache.get(id);
 }
 function bindCards(list, entries = false) {
+  cancelCardPresses();
+  const cancels = [];
+  cancelCardPresses = () => cancels.forEach(cancel => cancel());
   revealScrollingCards();
   app.querySelectorAll("[data-movie]").forEach(btn => {
     const item = list[Number(btn.dataset.movie)];
-    let timer, origin, suppressClick = false;
+    const savedEntry = entries ? item : state.movies.find(entry=>String(entry.movies.tmdb_id)===String(item.id));
+    let timer, origin, suppressClick = false, longPressHandled = false;
     const cancel = () => { clearTimeout(timer); timer = null; };
+    cancels.push(cancel);
     btn.onclick = e => {
       if (suppressClick) { e.preventDefault(); suppressClick = false; return; }
-      run(btn, () => details(entries ? item.movies : item, entries ? item : null, btn));
+      run(null, () => details(entries ? item.movies : item, savedEntry || null, btn));
     };
     btn.addEventListener("pointerdown", () => { loadMovieDetails(entries ? item.movies : item).catch(() => {}); }, {passive:true});
     if (!entries) return;
     btn.onpointerdown = e => {
-      cancel(); suppressClick = false;
+      cancel(); suppressClick = false; longPressHandled = false;
       if (e.button !== 0 || !e.isPrimary) return;
       origin = {x:e.clientX,y:e.clientY};
       timer = setTimeout(() => {
-        timer = null; if (!btn.isConnected) return; suppressClick = true; movieActions(item, btn);
+        timer = null; if (!btn.isConnected) return; suppressClick = true; longPressHandled = true; movieActions(item, btn);
       }, 550);
     };
     btn.onpointermove = e => {
@@ -235,7 +249,7 @@ function bindCards(list, entries = false) {
     btn.onpointerup = cancel;
     btn.onpointercancel = cancel;
     btn.onpointerleave = cancel;
-    btn.oncontextmenu = e => { e.preventDefault(); cancel(); suppressClick = true; movieActions(item, btn); };
+    btn.oncontextmenu = e => { e.preventDefault(); cancel(); if (longPressHandled) return; longPressHandled = true; suppressClick = true; movieActions(item, btn); };
   });
   app.querySelectorAll("[data-card-menu]").forEach(btn => {
     btn.onclick = () => movieActions(list[Number(btn.dataset.cardMenu)], btn.closest(".movie-card-wrap").querySelector(".movie-card"));
@@ -246,7 +260,7 @@ function movieActions(entry, source = null) {
   const targets = state.groups.filter(g => g.group_id !== state.group?.group_id);
   openModal(`<p class="eyebrow">Movie actions</p><h2>${esc(entry.movies.title)}</h2><div class="quick-movie-actions"><button id="quick-watched" class="button">${entry.watched ? "Move to watchlist" : "Mark watched"}</button><button id="quick-details" class="button secondary">Movie details</button>${targets.length ? `<label for="quick-target">Another watchlist</label><select id="quick-target">${targets.map(g => `<option value="${esc(g.group_id)}">${esc(g.group_name)}</option>`).join("")}</select><div class="quick-transfer"><button id="quick-copy" class="button secondary">Copy to list</button><button id="quick-move" class="button secondary">Move to list</button></div>` : ""}<button id="quick-remove" class="button danger">Remove from this list</button></div>`, source);
   $("#quick-details").onclick = () => details(entry.movies, entry);
-  $("#quick-watched").onclick = e => run(e.currentTarget, async () => { await setWatched(entry,!entry.watched); modal.close(); });
+  $("#quick-watched").onclick = e => run(e.currentTarget, async () => { await setWatched(entry,!entry.watched); closeModal(); });
   for (const action of ["copy","move"]) {
     const button = $("#quick-"+action);
     if (!button) continue;
@@ -261,22 +275,19 @@ function movieActions(entry, source = null) {
       } else {
         checked(await db.from("group_movies").insert({group_id:target,movie_id:entry.movies.id,added_by:state.user.id,suggestion_note:entry.suggestion_note || "",watched:entry.watched,watched_at:entry.watched_at || null}));
       }
-      await loadMovies(); render(); modal.close(); toast(action === "move" ? "Moved to watchlist." : "Copied to watchlist.");
+      await loadMovies(); render(); closeModal(); toast(action === "move" ? "Moved to watchlist." : "Copied to watchlist.");
     });
   }
   $("#quick-remove").onclick = e => run(e.currentTarget, async () => {
     if (!confirm(`Remove “${entry.movies.title}” from this watchlist?`)) return;
     const rows = checked(await db.from("group_movies").delete().eq("id",entry.id).select("id"));
     if (!rows.length) throw new Error("You do not have permission to remove this movie.");
-    await loadMovies(); render(); modal.close(); toast("Removed from watchlist.");
+    await loadMovies(); render(); closeModal(); toast("Removed from watchlist.");
   });
 }
 async function loadGroups() {
   state.personalGroup = checked(await db.rpc("mojo_personal_list"));
-  state.groups =
-    checked(
-      await db.rpc("get_user_groups_with_counts", { uid: state.user.id }),
-    ) || [];
+  state.groups = checked(await db.rpc("get_user_groups_with_counts", { uid: state.user.id })) || [];
   const saved = localStorage.getItem(`mojo-group-${state.user.id}`);
   state.group =
     state.groups.find((g) => g.group_id === (state.group?.group_id || saved)) ||
@@ -286,29 +297,15 @@ async function loadGroups() {
   await loadMovies();
 }
 async function loadMovies() {
-  state.movies = state.group
-    ? checked(
-        await db
-          .from("group_movies")
-          .select(
-            "id,watched,watched_at,added_by,added_at,suggestion_note,movies(id,title,description,poster_url,release_year,tmdb_id)",
-          )
-          .eq("group_id", state.group.group_id)
-          .order("added_at", { ascending: false }),
-      )
-    : [];
-  state.movies = state.movies.filter((m) => m.movies);
-  const contributors = state.group
-    ? checked(
-        await db.rpc("mojo_group_contributors", {
-          target_group: state.group.group_id,
-        }),
-      ) || []
-    : [];
-  state.contributors = Object.fromEntries(
-    contributors.map((p) => [p.user_id, p.display_name]),
-  );
+  if (!state.group) { state.movies=[]; state.contributors={}; return; }
+  const [movieRows, contributorRows] = await Promise.all([
+    db.from("group_movies").select("id,watched,watched_at,added_by,added_at,suggestion_note,movies(id,title,description,poster_url,release_year,tmdb_id)").eq("group_id",state.group.group_id).order("added_at",{ascending:false}),
+    db.rpc("mojo_group_contributors",{target_group:state.group.group_id})
+  ]);
+  state.movies = (checked(movieRows) || []).filter(m=>m.movies);
+  state.contributors = Object.fromEntries((checked(contributorRows) || []).map(p=>[p.user_id,p.display_name]));
 }
+
 async function switchGroup(id) {
   state.group = state.groups.find((g) => g.group_id === id);
   localStorage.setItem(`mojo-group-${state.user.id}`, id);
@@ -395,7 +392,7 @@ async function handleInvite() {
     await clear();
     await loadGroups();
     await switchGroup(groupId);
-    modal.close();
+    closeModal();
     go("watchlist");
     toast("Your group watchlist is ready.");
   };
@@ -414,7 +411,7 @@ async function handleInvite() {
   $("#accept-link").onclick = (e) => run(e.currentTarget, join);
   $("#dismiss-link").onclick = async () => {
     await clear();
-    modal.close();
+    closeModal();
   };
 }
 function auth(signup = false) {
@@ -489,7 +486,7 @@ function watchGenreMenu() {
   modal.querySelectorAll("[data-watch-genre]").forEach(button=>button.onclick=()=>run(button,async()=>{
     if(button.dataset.watchGenre) await loadWatchMetadata();
     state.watchGenre=button.dataset.watchGenre;
-    watchlist(); modal.close();
+    watchlist(); closeModal();
   }));
 }
 function watchSortMenu() {
@@ -500,13 +497,13 @@ function watchSortMenu() {
       await loadWatchMetadata();
     }
     state.watchSort=key; state.watchReverse=false;
-    watchlist(); modal.close();
+    watchlist(); closeModal();
   }));
 }
 function watchlist() {
   const previousPills = app.querySelector(".pills");
   const entries = sortedWatchEntries(state.movies.filter((m) => !!m.watched === state.watched && (!state.watchGenre || watchMetadata.get(String(m.movies.tmdb_id))?.genres?.some(g=>String(g.id)===state.watchGenre))));
-  app.innerHTML = `<p class="eyebrow">Your movie night, sorted</p><h1>The watchlist.</h1><p class="subtitle">Less scrolling. More watching.</p><div class="toolbar"><select id="group-select" class="group-select" aria-label="Choose watchlist">${state.groups.map((g) => `<option value="${esc(g.group_id)}" ${g.group_id === state.group?.group_id ? "selected" : ""}>${esc(g.group_name)}</option>`).join("") || "<option>No watchlists yet</option>"}</select><button id="add-movie" class="button secondary">＋ Add a movie</button></div><section class="picker-hero"><div><p class="eyebrow">Let fate take the remote</p><h2>Can't decide tonight?</h2><p>One random pick from your unwatched movies.<br>Every movie gets an equal shot.</p></div><button class="button" id="pick">✦ Pick tonight</button></section><div class="section-row"><div class="pills"><button class="pill ${!state.watched ? "active" : ""}" id="unwatched">To watch</button><button class="pill ${state.watched ? "active" : ""}" id="watched">Watched</button></div><div class="watch-sort-controls"><button id="watch-sort" class="button secondary">Sort${state.watchSort === "added" ? "" : ": " + ({name:"Name",date:"Release",rating:"Rating"})[state.watchSort]}</button><button id="watch-reverse" class="button secondary" aria-label="Reverse sort order" aria-pressed="${state.watchReverse}" title="Reverse sort order"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4v16m-4-4 4 4 4-4M17 20V4m-4 4 4-4 4 4"/></svg></button><button id="watch-genre" class="button secondary" aria-pressed="${!!state.watchGenre}">${state.watchGenre ? genres.find(g=>String(g[0])===state.watchGenre)?.[1] || "Genre" : "Filter"}</button><span class="count">${entries.length} movie${entries.length === 1 ? "" : "s"}</span></div></div><div class="grid">${entries.map((m, i) => card(m.movies, i, m)).join("") || empty(state.watchGenre ? "No movies in this genre." : state.group ? "The opening scene." : "Bring your people together.", state.watchGenre ? "Choose All genres to see your full list." : state.group ? "Add a few movies to get your next movie night started." : "Create a group, or a watchlist just for you.", state.watchGenre ? '<button id="clear-watch-genre" class="button">Clear genre filter</button>' : `<button id="empty-action" class="button">${state.group ? "Find a movie" : "Create a watchlist"}</button>`)}</div>`;
+  app.innerHTML = `<p class="eyebrow">Your movie night, sorted</p><h1>The watchlist.</h1><p class="subtitle">Less scrolling. More watching.</p><div class="toolbar"><select id="group-select" class="group-select" aria-label="Choose watchlist">${state.groups.map((g) => `<option value="${esc(g.group_id)}" ${g.group_id === state.group?.group_id ? "selected" : ""}>${esc(g.group_name)}</option>`).join("") || "<option>No watchlists yet</option>"}</select><button id="add-movie" class="button secondary">Find a movie</button></div><section class="picker-hero"><div><p class="eyebrow">Let fate take the remote</p><h2>Can't decide tonight?</h2><p>One random pick from your unwatched movies.<br>Every movie gets an equal shot.</p></div><button class="button" id="pick">✦ Pick tonight</button></section><div class="section-row"><div class="pills"><button class="pill ${!state.watched ? "active" : ""}" id="unwatched">To watch</button><button class="pill ${state.watched ? "active" : ""}" id="watched">Watched</button></div><div class="watch-sort-controls"><button id="watch-sort" class="button secondary">Sort${state.watchSort === "added" ? "" : ": " + ({name:"Name",date:"Release",rating:"Rating"})[state.watchSort]}</button><button id="watch-reverse" class="button secondary" aria-label="Reverse sort order" aria-pressed="${state.watchReverse}" title="Reverse sort order"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4v16m-4-4 4 4 4-4M17 20V4m-4 4 4-4 4 4"/></svg></button><button id="watch-genre" class="button secondary" aria-pressed="${!!state.watchGenre}">${state.watchGenre ? genres.find(g=>String(g[0])===state.watchGenre)?.[1] || "Genre" : "Filter"}</button><span class="count">${entries.length} movie${entries.length === 1 ? "" : "s"}</span></div></div><div class="grid">${entries.map((m, i) => card(m.movies, i, m)).join("") || empty(state.watchGenre ? "No movies in this genre." : state.group ? "The opening scene." : "Bring your people together.", state.watchGenre ? "Choose All genres to see your full list." : state.group ? "Add a few movies to get your next movie night started." : "Create a group, or a watchlist just for you.", state.watchGenre ? '<button id="clear-watch-genre" class="button">Clear genre filter</button>' : `<button id="empty-action" class="button">${state.group ? "Find a movie" : "Create a watchlist"}</button>`)}</div>`;
   if (previousPills) {
     app.querySelector(".pills").replaceWith(previousPills);
     previousPills.querySelector("#unwatched").classList.toggle("active", !state.watched);
@@ -527,6 +524,7 @@ function watchlist() {
     watchlist();
   };
   $("#pick").onclick = pick;
+  $(".picker-hero").hidden = !state.movies.some(movie => !movie.watched);
   if ($("#empty-action"))
     $("#empty-action").onclick = () => go(state.group ? "discover" : "groups");
   if ($("#clear-watch-genre")) $("#clear-watch-genre").onclick = () => { state.watchGenre=""; watchlist(); };
@@ -557,7 +555,7 @@ function pick() {
   $("#picked-watched").onclick = (e) =>
     run(e.currentTarget, async () => {
       await setWatched(chosen, true);
-      modal.close();
+      closeModal();
     });
 }
 const genres = [
@@ -618,7 +616,7 @@ function updateMoodControls() {
   $("#year-to").value = state.filters.yearTo || "";
 }
 function discover() {
-  app.innerHTML = `<p class="eyebrow">A little inspiration</p><h1>Find your next favorite.</h1><p class="subtitle">Follow a mood. Explore a genre. See what catches your eye.</p><div class="mood-shortcuts" aria-label="Movie mood shortcuts">${moodShortcuts.map((m, i) => `<button class="mood-chip ${state.filters.mood === m.label ? "active" : ""}" aria-pressed="${state.filters.mood === m.label}" type="button" data-mood="${i}">${m.label}</button>`).join("")}</div><p id="mood-description" class="muted" hidden></p><form id="search-form" class="search-row"><input name="query" id="query" type="search" placeholder="Search movie titles…" aria-label="Movie title" value="${esc(state.query)}"><button class="button" type="submit">Search</button></form><details class="filters"><summary>Browse by filters</summary><form id="filter-form"><p class="muted">Filters browse the movie catalog. Title search runs separately.</p><div class="filter-grid">${select("with_genres", "Genre", [["", "All genres"], ...genres])}<fieldset class="release-years"><legend>Release year</legend><div class="year-range"><div><label for="year-from">From</label><input id="year-from" name="yearFrom" type="number" min="1874" max="2100" placeholder="Any" inputmode="numeric" value="${esc(state.filters.yearFrom || "")}"></div><span aria-hidden="true">–</span><div><label for="year-to">To</label><input id="year-to" name="yearTo" type="number" min="1874" max="2100" placeholder="Any" inputmode="numeric" value="${esc(state.filters.yearTo || "")}"></div></div></fieldset>${select(
+  app.innerHTML = `<p class="eyebrow">A little inspiration</p><h1>Find your next favorite.</h1><p class="subtitle">Follow a mood. Explore a genre. See what catches your eye.</p><div class="mood-shortcuts" aria-label="Movie mood shortcuts">${moodShortcuts.map((m, i) => `<button class="mood-chip ${state.filters.mood === m.label ? "active" : ""}" aria-pressed="${state.filters.mood === m.label}" type="button" data-mood="${i}">${m.label}</button>`).join("")}</div><p class="mood-scroll-hint">More moods → Scroll sideways</p><p id="mood-description" class="muted" hidden></p><form id="search-form" class="search-row"><input name="query" id="query" type="search" placeholder="Search movie titles…" aria-label="Movie title" value="${esc(state.query)}"><button class="button" type="submit">Search</button></form><details class="filters"><summary>Browse by filters</summary><form id="filter-form"><p class="muted">Filters browse the movie catalog. Title search runs separately.</p><div class="filter-grid">${select("with_genres", "Genre", [["", "All genres"], ...genres])}<fieldset class="release-years"><legend>Release year</legend><div class="year-range"><div><label for="year-from">From</label><input id="year-from" name="yearFrom" type="number" min="1874" max="2100" placeholder="Any" inputmode="numeric" value="${esc(state.filters.yearFrom || "")}"></div><span aria-hidden="true">–</span><div><label for="year-to">To</label><input id="year-to" name="yearTo" type="number" min="1874" max="2100" placeholder="Any" inputmode="numeric" value="${esc(state.filters.yearTo || "")}"></div></div></fieldset>${select(
     "vote_average.gte",
     "Minimum audience score",
     [
@@ -1001,6 +999,13 @@ async function fetchDiscover(append = false) {
     };
     const previous = append ? state.results : [];
     let movies = await selectMovies(data.results);
+    if (state.mode === "search") {
+      const normalize = title => title.toLowerCase().replace(/[^\p{L}\p{N}]+/gu," ").trim();
+      const query = normalize(state.query);
+      movies = movies.filter(movie=>/^\d{4}-\d{2}-\d{2}$/.test(movie.release_date || "") && !/soundtrack|original score/i.test(movie.title || ""));
+      movies.sort((a,b)=>Number(normalize(b.title)===query)-Number(normalize(a.title)===query) || (b.vote_count || 0)-(a.vote_count || 0) || (b.popularity || 0)-(a.popularity || 0));
+    }
+
     const publish = () => {
       published = true;
       state.page = lastPage;
@@ -1114,7 +1119,7 @@ async function details(movie, entry = null, source = null) {
         );
         await loadMovies();
         render();
-        modal.close();
+        closeModal();
         toast("Suggestion note saved.");
       });
     };
@@ -1122,7 +1127,7 @@ async function details(movie, entry = null, source = null) {
     $("#toggle-watched").onclick = (e) =>
       run(e.currentTarget, async () => {
         await setWatched(entry, !entry.watched);
-        modal.close();
+        closeModal();
       });
     $("#remove-movie").onclick = (e) =>
       run(e.currentTarget, async () => {
@@ -1138,7 +1143,7 @@ async function details(movie, entry = null, source = null) {
           throw new Error("You do not have permission to remove this movie.");
         await loadMovies();
         render();
-        modal.close();
+        closeModal();
         toast("Removed from watchlist.");
       });
   } else
@@ -1149,7 +1154,7 @@ async function details(movie, entry = null, source = null) {
           $("#save-group").value,
           $("#suggestion-note").value,
         );
-        modal.close();
+        closeModal();
         toast("Added to your watchlist.");
       });
 }
@@ -1235,7 +1240,7 @@ function manualAdd() {
       );
       if (duplicate) throw new Error("This title is already on your list.");
       await saveMovie({ title }, state.group.group_id, $("#manual-note").value);
-      modal.close();
+      closeModal();
       render();
       toast("Movie added.");
     });
@@ -1350,7 +1355,7 @@ async function groupPeople(id) {
     `<p class="eyebrow">Your movie circle</p><h2>${esc(group?.group_name || "Group")} members</h2><div id="group-people">${people
       .map((p) => {
         const f = data.friends.find((f) => f.id === p.id);
-        return `<div class="form-panel"><h3>${esc(p.id === state.user.id ? state.displayName || "You" : p.name)}${p.id === state.user.id ? " · You" : ""}</h3>${p.owner ? '<p class="muted">Group creator</p>' : ""}${p.id === state.user.id ? "" : f?.accepted ? '<p class="muted">Friends ✓</p>' : f ? (f.incoming ? `<button class="button" data-member-action="accept" data-person="${p.id}">Accept friend request</button>` : '<p class="muted">Friend request sent</p>') : `<button class="button secondary" data-member-action="request" data-person="${p.id}">Add friend</button>`}</div>`;
+        return `<div class="form-panel"><h3>${esc(p.id === state.user.id ? state.displayName || "You" : p.name)}${p.id === state.user.id && state.displayName && state.displayName.toLowerCase() !== "you" ? " · You" : ""}</h3>${p.owner ? '<p class="muted">Group creator</p>' : ""}${p.id === state.user.id ? "" : f?.accepted ? '<p class="muted">Friends ✓</p>' : f ? (f.incoming ? `<button class="button" data-member-action="accept" data-person="${p.id}">Accept friend request</button>` : '<p class="muted">Friend request sent</p>') : `<button class="button secondary" data-member-action="request" data-person="${p.id}">Add friend</button>`}</div>`;
       })
       .join("")}</div>`,
   );
@@ -1563,11 +1568,11 @@ async function initialize(user) {
     state.contributors = {};
     state.streamingServices = [];
     state.streamingRegion = "US";
-    state.filters = {};
+    state.filters = {mood:"Trending Now",trending:true};
     render();
     return;
   }
-  app.innerHTML = '<p class="loading">Getting your watchlists ready…</p>';
+  app.innerHTML = '<section class="startup-shell" aria-busy="true" aria-label="Loading watchlists"><p class="eyebrow">Your movie night, sorted</p><h1>The watchlist.</h1><p role="status" class="muted">Getting your watchlists ready…</p><div class="skeleton-toolbar"></div><div class="skeleton-hero"></div><div class="grid">'+Array.from({length:10},()=>'<div class="skeleton-card"><div></div><span></span></div>').join('')+'</div></section>';
   try {
     const profile = checked(
       await db
@@ -1618,7 +1623,7 @@ db.auth.onAuthStateChange((event, session) => {
           checked(
             await db.auth.updateUser({ password: $("#new-password").value }),
           );
-          modal.close();
+          closeModal();
           toast("Password updated.");
         });
       };
