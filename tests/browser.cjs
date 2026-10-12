@@ -337,6 +337,10 @@ const fixture = {
             ],
             total_pages: 2,
           };
+    if (url.pathname.includes("/search/movie")) {
+      data.results[0].vote_count=10000;
+      data.results.unshift({id:991,title:"Inception",release_date:"2014-01-01",vote_count:2},{id:992,title:"Inception Soundtrack",release_date:"2010-01-01"},{id:993,title:"Inception",release_date:""});
+    }
     if (url.pathname.endsWith("/movies/metadata")) data = {results:[{id:155},{id:27205,release_date:"2010-07-16",vote_average:8.4,vote_count:100,genres:[{id:28,name:"Action"}]},{id:157336,release_date:"2014-11-07",vote_average:9,vote_count:100,genres:[{id:878,name:"Science Fiction"}]}]};
     if (url.pathname.includes("/trending/")) data.results.forEach(movie => movie.watch_availability = {US:{flatrate:[{provider_id:8},{provider_id:9}],rent:[{provider_id:8}],buy:[{provider_id:8}]}});
     r.fulfill({ json: data });
@@ -396,6 +400,8 @@ const fixture = {
   assert.equal(await page.locator("#quick-watched").count(),1,"release must not open details");
   await page.screenshot({path:"/tmp/mojo-longpress-menu.png"});
   await page.locator("#close-modal").click();
+  await firstCard.dispatchEvent("contextmenu");
+  assert.equal(await page.locator("dialog").getAttribute("open"),null,"late context menu must not reopen a dismissed dialog");
   await page.getByRole("button",{name:"Actions for Inception",exact:true}).click();
   await page.locator("#quick-copy").click();
   await page.waitForFunction(() => testData.lastCopy?.movie_id === "m1");
@@ -627,7 +633,9 @@ const fixture = {
       (u) => u.includes("/search/movie") && u.includes("query=Inception"),
     ),
   );
-  await page.locator("#results .movie-card").click();
+  assert.equal(await page.locator("#results .movie-card").count(),2,"soundtracks and undated results should be excluded");
+  assert(await page.locator("#results .movie-card").first().textContent().then(t=>t.includes("2010")), "established movie should rank first");
+  await page.locator("#results .movie-card").first().click();
   await page.locator("#modal-content").getByRole("heading", { name: "Inception", exact: true }).waitFor();
   await page.locator(".movie-links .movie-link").first().waitFor();
   for (const width of [320, 375, 390, 430]) {
@@ -699,6 +707,17 @@ const fixture = {
     return Math.abs(menu.top-card.top)<1 && Math.abs(menu.right-card.right)<1 && getComputedStyle(el.querySelector(".card-menu-button"),"::before").width === "26px";
   }), "desktop menu must be compact and inside the poster corner");
   await page.screenshot({ path: "/tmp/mojo-desktop.png", fullPage: true });
+  for (let i=0;i<3;i++) {
+    await page.locator(".card-menu-button").first().click();
+    await page.locator("#close-modal").click();
+    assert.equal(await page.locator("dialog").getAttribute("open"),null);
+    await page.locator("#watch-sort").click();
+    await page.getByRole("heading",{name:"Sort movies",exact:true}).waitFor();
+    await page.locator("#close-modal").click();
+    await page.locator("#watch-genre").click();
+    await page.getByRole("heading",{name:"Filter by genre",exact:true}).waitFor();
+    await page.locator("#close-modal").click();
+  }
   const baseURL = page.url().split("#")[0].split("?")[0];
   await page.goto(baseURL + "?invite=77777777-7777-7777-7777-777777777777");
   await page.locator("#accept-link").click();
