@@ -556,6 +556,8 @@ const fixture = {
   await page.locator("#year-to").fill("2020");
   await page.selectOption("#with_genres", "878");
   await page.selectOption('[name="vote_average.gte"]', "7");
+  assert.equal(await page.locator(".advanced-filters").getAttribute("open"),null);
+  await page.locator(".advanced-filters > summary").click();
   await page.selectOption('[name="with_runtime.lte"]', "120");
   await page.locator("#filter-form .button").first().click();
   await page.waitForTimeout(300);
