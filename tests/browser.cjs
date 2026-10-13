@@ -754,7 +754,9 @@ const fixture = {
   await page.locator("[data-history-person]").click();
   await page.getByRole("heading", { name: "Arrival", exact: true }).waitFor();
   assert.equal(await page.locator("[data-history]").count(), 0);
-  for(let i=0;i<3;i++) {
+  for(const width of [390,1440]) {
+   await page.setViewportSize({width,height:1000});
+   for(let i=0;i<3;i++) {
     await page.locator('#friend-profile-history .movie-card').first().click();
     await page.locator('#save-group').waitFor();
     await page.locator('#close-modal').click();
@@ -766,6 +768,8 @@ const fixture = {
   }
 
 
+  }
+  await page.setViewportSize({width:390,height:844});
   await page.emulateMedia({reducedMotion:'reduce'});
   await page.route('**/functions/v1/movie-data',async route=>{
     if(route.request().postDataJSON().path==='movie/329865') {await new Promise(resolve=>setTimeout(resolve,750));await route.fulfill({json:{id:329865,title:'Arrival',release_date:'2016-11-11',videos:{results:[]},external_ids:{}}});}
