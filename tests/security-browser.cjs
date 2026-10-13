@@ -84,6 +84,7 @@ const fixture = {
             return {data:await res.json(),error:res.ok?null:{context:res}};
           } },
           auth: {
+            mfa: {getAuthenticatorAssuranceLevel:async()=>({data:{currentLevel:"aal1",nextLevel:"aal1"},error:null}),listFactors:async()=>({data:{totp:[],phone:[]},error:null})},
             onAuthStateChange: (fn) =>
               setTimeout(
                 () => fn("INITIAL_SESSION", { user: fixture.user }),
@@ -174,6 +175,7 @@ const fixture = {
                         {
                           user_id: fixture.user.id,
                           display_name: fixture.displayName || "Friend",
+                    bio:fixture.bio || "",
                         },
                       ]
                     : null,
@@ -212,6 +214,7 @@ const fixture = {
                 if (table === "user_profiles") {
                   if (value.streaming_services)
                     fixture.services = value.streaming_services;
+                  if(value.bio!==undefined) fixture.bio=value.bio;
                   if (value.display_name)
                     fixture.displayName = value.display_name;
                 } else fixture.movies[0].watched = value.watched;

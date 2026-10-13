@@ -60,6 +60,14 @@ const state = {
   user: null,
   approved: false,
   displayName: "",
+  bio: "",
+  mfaRequired: false,
+  mfaFactors: [],
+  profileSort: "added",
+  profileReverse: false,
+  profileGenre: "",
+  profileEditing: false,
+  profileHistory: null,
   contributors: {},
   streamingServices: [],
   streamingRegion: "US",
@@ -132,12 +140,15 @@ function movieCredits() {
 let cancelCardPresses = () => {};
 let modalDismissAction = null;
 function closeModal() {
+  ++detailRequest;
   const dismiss = modalDismissAction;
   modalDismissAction = null;
   if (dismiss) run(null, dismiss);
   cancelCardPresses();
   modal.getAnimations().forEach(animation => animation.cancel());
   modal.close();
+  modal.classList.remove("movie-detail-dialog", "from-card");
+  $("#modal-content").replaceChildren();
 }
 function openModal(html, source = null) {
   cancelCardPresses();
@@ -185,7 +196,7 @@ function revealScrollingCards() {
   app.querySelectorAll(".scroll-pending").forEach(el => el.classList.remove("scroll-pending"));
   if (matchMedia("(prefers-reduced-motion: reduce)").matches || !("IntersectionObserver" in window)) return;
   const rows = new Map();
-  app.querySelectorAll(".grid > .movie-card, .grid > .movie-card-wrap").forEach(card => {
+  app.querySelectorAll(".grid > .movie-card, .grid > .movie-card-wrap, .grid > .profile-history-card").forEach(card => {
     const key = card.offsetTop;
     if (!rows.has(key)) rows.set(key, []);
     rows.get(key).push(card);
@@ -318,6 +329,8 @@ async function switchGroup(id) {
 }
 let renderedPage;
 function render() {
+  updateAccountControl();
+  if (state.mfaRequired) { renderMfaLogin(); return; }
   scrollRevealObserver?.disconnect();
   if (renderedPage !== state.tab) {
     app.getAnimations().forEach(animation => animation.cancel());
@@ -359,7 +372,9 @@ document
   .querySelectorAll("[data-tab]")
   .forEach((b) => (b.onclick = () => go(b.dataset.tab)));
 $("#account-button").onclick = () => {
-  if (state.user) go("profile");
+  if (state.user && !state.mfaRequired) {
+    if(state.tab === "profile") settingsMenu(); else go("profile");
+  }
 };
 window.addEventListener("hashchange", () => {
   const tab = location.hash.slice(1);
@@ -471,9 +486,8 @@ function auth(signup = false) {
       });
 }
 const watchMetadata = new Map();
-function sortedWatchEntries(entries) {
-  const key = state.watchSort;
-  if(key === "added") return state.watchReverse ? [...entries].reverse() : entries;
+function sortedWatchEntries(entries, key = state.watchSort, reverse = state.watchReverse) {
+  if(key === "added") return reverse ? [...entries].reverse() : entries;
   const value = entry => {
     const movie = entry.movies, metadata = watchMetadata.get(String(movie.tmdb_id));
     if(key === "name") return movie.title;
@@ -487,11 +501,11 @@ function sortedWatchEntries(entries) {
     if(av==null) return 1;
     if(bv==null) return -1;
     const order=key === "rating" ? bv-av : String(av).localeCompare(String(bv),undefined,{numeric:true,sensitivity:"base"});
-    return (state.watchReverse ? -order : order) || a.movies.title.localeCompare(b.movies.title);
+    return (reverse ? -order : order) || a.movies.title.localeCompare(b.movies.title);
   });
 }
-async function loadWatchMetadata() {
-      const ids=[...new Set(state.movies.map(e=>e.movies.tmdb_id).filter(id=>id && !watchMetadata.has(String(id))))];
+async function loadWatchMetadata(movies = state.movies.map(entry=>entry.movies)) {
+      const ids=[...new Set(movies.map(movie=>movie.tmdb_id).filter(id=>id && !watchMetadata.has(String(id))))];
       for(let i=0;i<ids.length;i+=50) {
         const data=await tmdb("movies/metadata",{ids:ids.slice(i,i+50).join(",")});
         data.results.forEach(movie=>watchMetadata.set(String(movie.id),movie));
@@ -1212,8 +1226,9 @@ async function saveMovie(movie, groupId, note = "") {
   note = note.trim();
   if (note.length > 500) throw new Error("Keep your note to 500 characters.");
   if (!groupId) throw new Error("Create a watchlist first.");
-  const tmdbId = movie.id ? String(movie.id) : null;
-  let existing = tmdbId
+  const existingMovieId = typeof movie.id === "string" && /^[0-9a-f]{8}-[0-9a-f-]{27}$/i.test(movie.id) ? movie.id : null;
+  const tmdbId = movie.tmdb_id || (Number.isInteger(movie.id) ? String(movie.id) : null);
+  let existing = existingMovieId ? [{id:existingMovieId}] : tmdbId
     ? checked(
         await db.from("movies").select("id").eq("tmdb_id", tmdbId).limit(1),
       )
@@ -1520,68 +1535,7 @@ function manageWatchlists() {
     });
   });
 }
-function profile() {
-  app.innerHTML = `<div class="profile"><p class="eyebrow">Your corner of the cinema</p><h1>Hey, movie lover.</h1><p class="subtitle">${esc(state.user.email)}</p><div class="form-panel"><h3>Your watched movies</h3><p class="muted">See your history and remove movies you missed.</p><button id="my-watched-history" class="button secondary">Manage watched history</button></div><div class="form-panel"><h3>Your name</h3><p class="muted">Shown to your groups when you suggest a movie.</p><form id="display-name-form"><input id="display-name" aria-label="Your display name" maxlength="60" value="${esc(state.displayName)}" placeholder="What should your friends call you?" required><button class="button" type="submit">Save name</button></form></div><div class="form-panel"><h3>Your streaming services</h3><p class="muted">Save the services you have, then choose “My streaming services” in Discover.</p><form id="streaming-profile" class="streaming-profile"><div><label for="profile-region">Country</label><select id="profile-region"><option value="US">United States</option><option value="GB">United Kingdom</option><option value="CA">Canada</option><option value="AU">Australia</option></select></div><div id="profile-services"></div><button class="button" type="submit">Save streaming services</button></form></div><div class="form-panel"><h3>Movie Mojo, on your home screen</h3><p class="muted">On iPhone: open in Safari, tap Share, then Add to Home Screen. On Android: use your browser's Install app option.</p></div><div class="form-panel"><h3>Your watchlists</h3><p class="muted">Manage all your lists and movie groups in one place.</p><button id="manage-watchlists" class="button secondary">Manage watchlists →</button></div><button class="button secondary" id="refresh-data">Refresh watchlists</button><button class="button secondary" id="logout">Sign out</button>${movieCredits()}</div>`;
-  $("#my-watched-history").onclick = (e) =>
-    run(e.currentTarget, () => watchedProfile(state.user.id));
-  $("#display-name-form").onsubmit = (e) => {
-    e.preventDefault();
-    run($("#display-name-form button"), async () => {
-      const name = $("#display-name").value.trim();
-      if (!name) throw new Error("Enter your name.");
-      const rows = checked(
-        await db
-          .from("user_profiles")
-          .update({ display_name: name })
-          .eq("id", state.user.id)
-          .select("id"),
-      );
-      if (!rows.length) throw new Error("Could not save your name.");
-      state.displayName = name;
-      toast("Name saved.");
-    });
-  };
-  $("#profile-region").value = state.streamingRegion;
-  loadProviders(
-    state.streamingRegion,
-    "profile-services",
-    state.streamingServices,
-  );
-  $("#profile-region").onchange = () =>
-    loadProviders($("#profile-region").value, "profile-services");
-  $("#streaming-profile").onsubmit = (e) => {
-    e.preventDefault();
-    run($("#streaming-profile button[type=submit]"), async () => {
-      if (!$("#profile-services .service-picker"))
-        throw new Error("Wait for streaming services to load before saving.");
-      const ids = new FormData(e.target).getAll("profile-provider").map(Number);
-      const region = $("#profile-region").value;
-      const rows = checked(
-        await db
-          .from("user_profiles")
-          .update({ streaming_services: ids, streaming_region: region })
-          .eq("id", state.user.id)
-          .select("id"),
-      );
-      if (!rows.length)
-        throw new Error(
-          "Could not save your streaming services. Please try again.",
-        );
-      state.streamingServices = ids;
-      state.streamingRegion = region;
-      state.results = [];
-      toast("Streaming services saved.");
-    });
-  };
-  $("#logout").onclick = logout;
-  $("#refresh-data").onclick = (e) =>
-    run(e.currentTarget, async () => {
-      await loadGroups();
-      render();
-      toast("Watchlists refreshed.");
-    });
-  $("#manage-watchlists").onclick = manageWatchlists;
-}
+function profile() { renderProfilePage(); }
 async function logout() {
   await run($("#logout"), async () => {
     checked(await db.auth.signOut({ scope: "local" }));
@@ -1589,15 +1543,23 @@ async function logout() {
     state.groups = [];
     state.movies = [];
     state.results = [];
+    state.profileHistory=null;
+    closeModal();
   });
 }
 async function initialize(user) {
   const version = ++authVersion;
   state.user = user;
+  state.approved = false;
+  state.mfaRequired = false;
+  updateAccountControl();
   $("#navigation").hidden = true;
   if (!user) {
     state.approved = false;
     state.displayName = "";
+    state.bio = "";
+    state.profileHistory=null;
+    state.mfaFactors=[];
     state.contributors = {};
     state.streamingServices = [];
     state.streamingRegion = "US";
@@ -1607,16 +1569,26 @@ async function initialize(user) {
   }
   app.innerHTML = '<section class="startup-shell" aria-busy="true" aria-label="Loading watchlists"><p class="eyebrow">Your movie night, sorted</p><h1>The watchlist.</h1><p role="status" class="muted">Getting your watchlists ready…</p><div class="skeleton-toolbar"></div><div class="skeleton-hero"></div><div class="grid">'+Array.from({length:10},()=>'<div class="skeleton-card"><div></div><span></span></div>').join('')+'</div></section>';
   try {
+    const assurance = checked(await db.auth.mfa.getAuthenticatorAssuranceLevel());
+    const factors = checked(await db.auth.mfa.listFactors());
+    const verifiedFactors = factors.totp.filter(factor=>factor.status==="verified");
+    if (version !== authVersion) return;
+    if(verifiedFactors.length && assurance.currentLevel !== "aal2") {
+      state.mfaRequired=true; state.approved=false; state.groups=[]; state.movies=[]; state.profileHistory=null;
+      state.mfaFactors=verifiedFactors;
+      updateAccountControl(); renderMfaLogin(); return;
+    }
     const profile = checked(
       await db
         .from("user_profiles")
-        .select("approved, streaming_services, streaming_region, display_name")
+        .select("approved, streaming_services, streaming_region, display_name, bio")
         .eq("id", user.id)
         .maybeSingle(),
     );
     if (version !== authVersion) return;
     state.approved = !!profile?.approved;
     state.displayName = profile?.display_name || "";
+    state.bio = profile?.bio || "";
     state.streamingServices = profile?.streaming_services || [];
     state.streamingRegion = profile?.streaming_region || "US";
     if (state.approved) await loadGroups();
