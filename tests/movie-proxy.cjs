@@ -8,6 +8,11 @@ const { readFileSync } = require('node:fs');
  assert.equal(movieURL({path:"movies/metadata",params:{ids:"1,2"}}).pathname,"/3/movies/metadata");
  assert.throws(()=>movieURL({path:"movies/metadata",params:{ids:Array.from({length:51},(_,i)=>i+1).join(",")}}));
  assert.throws(()=>movieURL({path:"movies/metadata",params:{ids:"1/../../account"}}));
+ assert.equal(movieURL({path:"search/person",params:{query:"Tom"}}).searchParams.get("include_adult"),"false");
+ assert.throws(()=>movieURL({path:"search/person",params:{}}));
+ assert.equal(movieURL({path:"discover/movie",params:{with_cast:"1|2|3"}}).searchParams.get("with_cast"),"1|2|3");
+ assert.throws(()=>movieURL({path:"discover/movie",params:{with_cast:"1|2|3|4"}}));
+ assert.throws(()=>movieURL({path:"discover/movie",params:{with_cast:"0"}}));
  let gateStatus=200, allowed=true, upstreamStatus=200, calls=[], clock=1000;
  const env = n => ({TMDB_API_KEY:'server-only-test-key',SUPABASE_URL:'https://database.test',SUPABASE_ANON_KEY:'public-test-key'})[n];
  const handler=createHandler({env, now:()=>clock, fetch:async (url,options)=>{

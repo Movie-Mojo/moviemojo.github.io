@@ -384,11 +384,13 @@ const fixture = {
   assert.equal(await page.locator('[data-watch-sort="genre"]').count(),0);
   await page.locator("#close-modal").click();
   await page.locator("#watch-sort").click();
+  await page.locator('.movie-options-section summary').nth(1).click();
   await page.locator('[data-watch-genre="28"]').click();
   await page.locator("#close-modal").waitFor({state:"hidden"});
   assert.equal(await page.locator(".movie-card").count(),1);
   assert.equal(await page.locator(".movie-card h3").textContent(),"Inception");
   await page.locator("#watch-sort").click();
+  await page.locator('.movie-options-section summary').nth(1).click();
   await page.locator('[data-watch-genre=""]').click();
   assert.equal(await page.locator(".movie-card").count(),2);
   assert.equal(urls.filter(u=>u.includes("/movies/metadata")).length,1,"sort metadata should be fetched once and reused");
@@ -744,10 +746,10 @@ const fixture = {
     await page.locator("#close-modal").click();
     assert.equal(await page.locator("dialog").getAttribute("open"),null);
     await page.locator("#watch-sort").click();
-    await page.getByRole("heading",{name:"Sort & filter",exact:true}).waitFor();
+    await page.locator(".movie-options-section summary").first().waitFor();
     await page.locator("#close-modal").click();
     await page.locator("#watch-sort").click();
-    await page.getByRole("heading",{name:"Sort & filter",exact:true}).waitFor();
+    await page.locator(".movie-options-section summary").first().waitFor();
     await page.locator("#close-modal").click();
   }
   const baseURL = page.url().split("#")[0].split("?")[0];
