@@ -92,3 +92,14 @@ Per the user's request, browser/dependency hardening and excess database privile
 The user regenerated the TMDB API key. The replacement was transferred directly from TMDB's signed-in API screen to Supabase Edge Function Secrets, with no repository or chat copy. Supabase confirmed the replacement digest and update time. A request with the formerly public key returned HTTP 401.
 
 Signed-in API Overview directs applications to attribute TMDB for movie images/data and use approved logos. Movie Mojo now includes About & credits on Sign In and Profile, an unmodified approved logo linked to TMDB, the required non-endorsement notice, and JustWatch source attribution. Logo rendering and proportions were checked locally.
+
+## Optional authenticator MFA and profile settings (2026-10-12)
+
+- Authenticator enrollment is optional. Verified factors require an AAL2 session before any watchlist, profile preference, or movie proxy access. Enforcement lives in the private database approval predicate and profile RLS, not user-editable metadata or frontend state.
+- Login checks current server factors before fetching application data. Invalid codes keep the challenge screen locked; unenrollment requires a fresh authenticator code and refreshes session assurance.
+- QR secrets stay in the enrollment dialog only and are removed on dismissal. Cancelled enrollment removes the pending factor. No authenticator secret, password, or verification code is stored in app preferences or the repository.
+- Signed-in password changes submit the current password with the new password using pinned supabase-js 2.102.0. Email reauthentication is handled if required by the server. No sign-out/forgot-password flow is needed.
+- Recovery uses a separately enrolled backup authenticator or site-owner intervention after identity verification. There is no email-only MFA bypass or app-generated recovery-code feature.
+- Profile bio is limited to 500 characters in the database, escaped on display, and editable only by its owner with the required assurance level. Watched-history exclusions remain personal and do not change group records.
+- SMS MFA remains disabled and absent from Settings at the owner's request.
+- Synthetic browser tests cover enrollment cancellation, incorrect/valid codes, login gating, removal, password changes, reauthentication, bio and history editing. A live rollback SQL test verifies optional MFA, AAL1 denial, AAL2 access and the movie API gate without leaving test users or factors behind.

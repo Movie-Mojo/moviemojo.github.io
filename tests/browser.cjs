@@ -84,6 +84,7 @@ const fixture = {
             return {data:await res.json(),error:res.ok?null:{context:res}};
           } },
           auth: {
+            mfa: {getAuthenticatorAssuranceLevel:async()=>({data:{currentLevel:"aal1",nextLevel:"aal1"},error:null}),listFactors:async()=>({data:{totp:[],phone:[]},error:null})},
             onAuthStateChange: (fn) =>
               setTimeout(
                 () => fn("INITIAL_SESSION", { user: fixture.user }),
@@ -176,6 +177,7 @@ const fixture = {
                         {
                           user_id: fixture.user.id,
                           display_name: fixture.displayName || "Friend",
+                    bio:fixture.bio || "",
                         },
                       ]
                     : null,
@@ -216,6 +218,7 @@ const fixture = {
                 if (table === "user_profiles") {
                   if (value.streaming_services)
                     fixture.services = value.streaming_services;
+                  if(value.bio!==undefined) fixture.bio=value.bio;
                   if (value.display_name)
                     fixture.displayName = value.display_name;
                 } else if (value.group_id) fixture.lastMove = value;
@@ -452,6 +455,8 @@ const fixture = {
   );
   await page.locator("[data-tab=profile]").click();
   assert.equal(await page.locator("#leave-group").count(), 0);
+  await page.getByRole("button",{name:"Open settings",exact:true}).click();
+  await page.locator('[data-settings="lists"]').click();
   await page.locator("#manage-watchlists").click();
   await page.getByRole("heading", { name: "Manage watchlists", exact: true }).waitFor();
   assert.equal(await page.locator("[data-remove-group]").count(), 1);
@@ -464,17 +469,18 @@ const fixture = {
   await canceled;
   assert.equal(await page.locator("#modal-content [data-remove-group]").count(), 1);
   await page.locator("#close-modal").click();
-  await page.locator("#my-watched-history").click();
+  await page.locator("#profile-edit-history").click();
   await page.getByRole("heading", { name: "Arrival", exact: true }).waitFor();
-  await page.locator("[data-history=remove]").click();
+  await page.locator("[data-profile-remove]").click();
   await page.getByText("No watched movies yet.", { exact: true }).waitFor();
-  await page.locator("#modal-content details summary").click();
-  await page.locator("[data-history=restore]").click();
+  await page.locator("#profile-excluded details summary").click();
+  await page.locator("[data-profile-restore]").click();
   await page.getByRole("heading", { name: "Arrival", exact: true }).waitFor();
-  await page.locator("#close-modal").click();
   await page.locator("#display-name").fill("Alex");
   await page.locator("#display-name-form button").click();
   await page.waitForFunction(() => testData.displayName === "Alex");
+  await page.getByRole("button",{name:"Open settings",exact:true}).click();
+  await page.locator('[data-settings="streaming"]').click();
   await page.locator("#profile-services summary").click();
   assert.equal(
     await page
@@ -488,7 +494,10 @@ const fixture = {
   await page.locator('[name="profile-provider"][value="9"]').check();
   await page.locator("#streaming-profile button[type=submit]").click();
   await page.waitForFunction(() => testData.services?.length === 2);
+  await page.locator("#close-modal").click();
   await page.evaluate(() => initialize(state.user));
+  await page.getByRole("button",{name:"Open settings",exact:true}).click();
+  await page.locator('[data-settings="streaming"]').click();
   await page.locator("#profile-services summary").click();
   assert(
     await page.locator('[name="profile-provider"][value="8"]').isChecked(),
@@ -496,6 +505,7 @@ const fixture = {
   assert(
     await page.locator('[name="profile-provider"][value="9"]').isChecked(),
   );
+  if(await page.locator("dialog").getAttribute("open") !== null) await page.locator("#close-modal").click();
   await page.locator("[data-tab=discover]").click();
   await page.locator("#results .movie-card").waitFor();
   assert.equal(await page.locator("#discover-watchlist").inputValue(), "66666666-6666-6666-6666-666666666666");
