@@ -145,6 +145,7 @@ const fixture = {
               const movie = {
                 id: "history1",
                 title: "Arrival",
+                tmdb_id:"329865",
                 release_year: 2016,
                 status:fixture.historyStatus || "watched",
                 personal_rating:4,
@@ -435,7 +436,7 @@ const fixture = {
   await page.screenshot({path:"/tmp/mojo-longpress-menu.png"});
   await page.locator("#close-modal").click();
   await firstCard.dispatchEvent("contextmenu");
-  assert.equal(await page.locator("dialog").getAttribute("open"),null,"late context menu must not reopen a dismissed dialog");
+  assert.equal(await page.locator("#modal").getAttribute("open"),null,"late context menu must not reopen a dismissed dialog");
   await page.getByRole("button",{name:"Actions for Inception",exact:true}).click();
   await page.locator("#quick-copy").click();
   await page.waitForFunction(() => testData.lastCopy?.movie_id === "m1");
@@ -535,7 +536,7 @@ const fixture = {
   assert(
     await page.locator('[name="profile-provider"][value="9"]').isChecked(),
   );
-  if(await page.locator("dialog").getAttribute("open") !== null) await page.locator("#close-modal").click();
+  if(await page.locator("#modal").getAttribute("open") !== null) await page.locator("#close-modal").click();
   await page.locator("[data-tab=discover]").click();
   await page.locator("#results .movie-card").waitFor();
   assert.equal(await page.locator("#discover-watchlist").inputValue(), "66666666-6666-6666-6666-666666666666");
@@ -753,6 +754,37 @@ const fixture = {
   await page.locator("[data-history-person]").click();
   await page.getByRole("heading", { name: "Arrival", exact: true }).waitFor();
   assert.equal(await page.locator("[data-history]").count(), 0);
+  for(const width of [390,1440]) {
+   await page.setViewportSize({width,height:1000});
+   for(let i=0;i<3;i++) {
+    await page.locator('#friend-profile-history .movie-card').first().click();
+    await page.locator('#save-group').waitFor();
+    await page.locator('#close-modal').click();
+    assert.equal(await page.locator('#modal-overlay').isVisible(),false);
+    assert.equal(await page.locator('[inert]').count(),0);
+    await page.locator('[data-tab=groups]').click();await page.locator('#group-name').click();
+    assert.equal(await page.evaluate(()=>document.activeElement.id),'group-name');
+    await page.locator('[data-tab=friends]').click();await page.locator('[data-history-person]').click();await page.locator('#friend-profile-history .movie-card').first().waitFor();
+  }
+
+
+  }
+  await page.setViewportSize({width:390,height:844});
+  await page.emulateMedia({reducedMotion:'reduce'});
+  await page.route('**/functions/v1/movie-data',async route=>{
+    if(route.request().postDataJSON().path==='movie/329865') {await new Promise(resolve=>setTimeout(resolve,750));await route.fulfill({json:{id:329865,title:'Arrival',release_date:'2016-11-11',videos:{results:[]},external_ids:{}}});}
+    else await route.fallback();
+  });
+  await page.evaluate(()=>movieDetailCache.delete('329865'));
+  await page.locator('#friend-profile-history .movie-card').first().click();
+  await page.locator('#close-modal').click();
+  await page.locator('[data-tab=groups]').click();await page.locator('#group-name').click();
+  await page.waitForTimeout(900);
+  assert.equal(await page.locator('#modal-overlay').isVisible(),false,'late friend movie response cannot reopen popup');
+  assert.equal(await page.locator('[inert]').count(),0,'background controls must be released');
+  assert.equal(await page.evaluate(()=>document.activeElement.id),'group-name');
+  await page.emulateMedia({reducedMotion:'no-preference'});
+  await page.locator('[data-tab=friends]').click();await page.locator('[data-history-person]').click();await page.locator('#friend-profile-history .movie-card').first().waitFor();
   await page.locator("#back-to-friends").click();
   await page.locator(".friends-connect > summary").click();
   await page
@@ -780,7 +812,7 @@ const fixture = {
   for (let i=0;i<3;i++) {
     await page.locator(".card-menu-button").first().click();
     await page.locator("#close-modal").click();
-    assert.equal(await page.locator("dialog").getAttribute("open"),null);
+    assert.equal(await page.locator("#modal").getAttribute("open"),null);
     await page.locator("#watch-sort").click();
     await page.locator(".movie-options-section summary").first().waitFor();
     await page.locator("#close-modal").click();
@@ -794,11 +826,11 @@ const fixture = {
     await page.locator("#accept-link").waitFor();
     if(dismiss==="x") await page.locator("#close-modal").click();
     if(dismiss==="escape") await page.keyboard.press("Escape");
-    if(dismiss==="backdrop") await page.locator("dialog").dispatchEvent("click");
+    if(dismiss==="backdrop") await page.locator("#modal-overlay").dispatchEvent("click");
     await page.waitForFunction(()=>!pendingInvite() && !new URL(location.href).searchParams.has("invite"));
     await page.reload();
     await page.locator("#watch-sort").waitFor();
-    assert.equal(await page.locator("dialog").getAttribute("open"),null);
+    assert.equal(await page.locator("#modal").getAttribute("open"),null);
   }
   await page.goto(baseURL+"?invite=00000000-0000-0000-0000-000000000000");
   await page.waitForFunction(()=>!pendingInvite() && !new URL(location.href).searchParams.has("invite"));
@@ -824,7 +856,7 @@ const fixture = {
   await page.emulateMedia({reducedMotion:"reduce"});
   await page.locator(".movie-card").first().click();
   await page.locator("#modal-content h2").first().waitFor();
-  assert.equal(await page.locator("dialog").evaluate(el => getComputedStyle(el).animationName), "none");
+  assert.equal(await page.locator("#modal").evaluate(el => getComputedStyle(el).animationName), "none");
   assert.equal(await page.locator(".movie-card").first().evaluate(el => getComputedStyle(el).animationName), "none");
   await page.locator("#close-modal").click();
   await page.emulateMedia({reducedMotion:"no-preference"});
