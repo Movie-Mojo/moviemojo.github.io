@@ -9,6 +9,7 @@ const rules = {
   query: (v) => v.trim().length > 0 && v.length <= 200,
   include_adult: (v) => v === "false",
   watch_region: (v) => /^[A-Z]{2}$/.test(v),
+  with_cast: v => ids(v) && v.split(/[|,]/).length <= 3 && v.split(/[|,]/).every(id=>integer(id,1,999999999999)),
   with_genres: ids, without_genres: ids, with_watch_providers: ids,
   with_watch_monetization_types: (v) => /^(flatrate|free|ads|rent|buy)(\|(flatrate|free|ads|rent|buy))*$/.test(v),
   "vote_average.gte": (v) => /^\d+(\.\d+)?$/.test(v) && Number(v) <= 10,
@@ -22,18 +23,18 @@ const rules = {
 export function movieURL(body) {
   if (!body || typeof body !== "object" || Array.isArray(body) || Object.keys(body).some((k) => !["path", "params"].includes(k))) throw Error("Invalid request");
   const path = body.path;
-  if (!["discover/movie", "search/movie", "watch/providers/movie", "trending/movie/week", "movies/metadata"].includes(path) && !(typeof path === "string" && /^movie\/[1-9]\d{0,11}$/.test(path))) throw Error("Invalid endpoint");
+  if (!["discover/movie", "search/movie", "search/person", "watch/providers/movie", "trending/movie/week", "movies/metadata"].includes(path) && !(typeof path === "string" && /^movie\/[1-9]\d{0,11}$/.test(path))) throw Error("Invalid endpoint");
   const params = body.params ?? {};
   if (typeof params !== "object" || Array.isArray(params)) throw Error("Invalid filters");
-  const allowed = path === "movies/metadata" ? ["ids"] : path === "trending/movie/week" ? ["page", "include_availability"] : path === "search/movie" ? ["query", "page", "include_adult"] : path === "watch/providers/movie" ? ["watch_region"] : path.startsWith("movie/") ? ["append_to_response"] : Object.keys(rules).filter((k) => !["query", "append_to_response", "include_availability", "ids"].includes(k));
+  const allowed = path === "movies/metadata" ? ["ids"] : path === "trending/movie/week" ? ["page", "include_availability"] : ["search/movie","search/person"].includes(path) ? ["query", "page", "include_adult"] : path === "watch/providers/movie" ? ["watch_region"] : path.startsWith("movie/") ? ["append_to_response"] : Object.keys(rules).filter((k) => !["query", "append_to_response", "include_availability", "ids"].includes(k));
   const url = new URL(`https://api.themoviedb.org/3/${path}`);
   for (const [key, raw] of Object.entries(params).sort(([a], [b]) => a.localeCompare(b))) {
     if (!allowed.includes(key) || !["string", "number", "boolean"].includes(typeof raw) || !rules[key](String(raw))) throw Error("Invalid filters");
     url.searchParams.set(key, String(raw));
   }
   if (path === "movies/metadata" && !url.searchParams.has("ids")) throw Error("Missing ids");
-  if (path === "search/movie" && !url.searchParams.has("query")) throw Error("Missing query");
-  if (["search/movie", "discover/movie"].includes(path)) url.searchParams.set("include_adult", "false");
+  if (["search/movie","search/person"].includes(path) && !url.searchParams.has("query")) throw Error("Missing query");
+  if (["search/movie", "search/person", "discover/movie"].includes(path)) url.searchParams.set("include_adult", "false");
   return url;
 }
 async function readBody(req) {

@@ -636,13 +636,13 @@ function updateMoodControls() {
     option.dataset.moodOption = "true";
     genre.add(option);
   }
-  for (const select of $("#filter-form").querySelectorAll("select"))
+  for (const select of $("#filter-form").querySelectorAll("select[name]"))
     select.value = state.filters[select.name] || (select.name === "watch_region" ? state.streamingRegion : select.name === "sort_by" ? "popularity.desc" : "");
   $("#year-from").value = state.filters.yearFrom || "";
   $("#year-to").value = state.filters.yearTo || "";
 }
 function discover() {
-  app.innerHTML = `<p class="eyebrow">A little inspiration</p><h1>Find your next favorite.</h1><p class="subtitle">Follow a mood. Explore a genre. See what catches your eye.</p><div class="mood-shortcuts" aria-label="Movie mood shortcuts">${moodShortcuts.map((m, i) => `<button class="mood-chip ${state.filters.mood === m.label ? "active" : ""}" aria-pressed="${state.filters.mood === m.label}" type="button" data-mood="${i}">${m.label}</button>`).join("")}</div><p class="mood-scroll-hint">More moods → Scroll sideways</p><p id="mood-description" class="muted" hidden></p><form id="search-form" class="search-row"><input name="query" id="query" type="search" placeholder="Search movie titles…" aria-label="Movie title" value="${esc(state.query)}"><button class="button" type="submit">Search</button></form><details class="filters"><summary>Browse by filters</summary><form id="filter-form"><p class="muted">Filters browse the movie catalog. Title search runs separately.</p><div class="filter-grid">${select("with_genres", "Genre", [["", "All genres"], ...genres])}<fieldset class="release-years"><legend>Release year</legend><div class="year-range"><div><label for="year-from">From</label><input id="year-from" name="yearFrom" type="number" min="1874" max="2100" placeholder="Any" inputmode="numeric" value="${esc(state.filters.yearFrom || "")}"></div><span aria-hidden="true">–</span><div><label for="year-to">To</label><input id="year-to" name="yearTo" type="number" min="1874" max="2100" placeholder="Any" inputmode="numeric" value="${esc(state.filters.yearTo || "")}"></div></div></fieldset>${select(
+  app.innerHTML = `<p class="eyebrow">A little inspiration</p><h1>Find your next favorite.</h1><p class="subtitle">Follow a mood. Explore a genre. See what catches your eye.</p><div class="mood-shortcuts" aria-label="Movie mood shortcuts">${moodShortcuts.map((m, i) => `<button class="mood-chip ${state.filters.mood === m.label ? "active" : ""}" aria-pressed="${state.filters.mood === m.label}" type="button" data-mood="${i}">${m.label}</button>`).join("")}</div><p class="mood-scroll-hint">More moods → Scroll sideways</p><p id="mood-description" class="muted" hidden></p><form id="search-form" class="search-row"><input name="query" id="query" type="search" placeholder="Search movie titles…" aria-label="Movie title" value="${esc(state.query)}"><button class="button" type="submit">Search</button></form><details class="filters"><summary>Browse by filters</summary><form id="filter-form"><p class="muted">Filters browse the movie catalog. Title search runs separately.</p><div class="filter-grid"><div class="cast-filter"><label for="cast-search">Actor / actress</label><div id="cast-picker"></div></div>${select("with_genres", "Genre", [["", "All genres"], ...genres])}<fieldset class="release-years"><legend>Release year</legend><div class="year-range"><div><label for="year-from">From</label><input id="year-from" name="yearFrom" type="number" min="1874" max="2100" placeholder="Any" inputmode="numeric" value="${esc(state.filters.yearFrom || "")}"></div><span aria-hidden="true">–</span><div><label for="year-to">To</label><input id="year-to" name="yearTo" type="number" min="1874" max="2100" placeholder="Any" inputmode="numeric" value="${esc(state.filters.yearTo || "")}"></div></div></fieldset>${select(
     "vote_average.gte",
     "Minimum audience score",
     [
@@ -690,6 +690,9 @@ function discover() {
         const clear = state.filters.mood === mood.label;
         state.filters = {
           watch_region: state.filters.watch_region || state.streamingRegion,
+          castPeople: state.filters.castPeople || [],
+          castMatch: state.filters.castMatch || "any",
+          with_cast: state.filters.with_cast || "",
           providerIds: state.filters.providerIds || [],
           useMyServices: !!state.filters.useMyServices,
           hideWatched: !!state.filters.hideWatched,
@@ -717,6 +720,7 @@ function discover() {
     state.page = 1;
     fetchDiscover();
   };
+  bindCastPicker();
   $("#filter-form").onsubmit = (e) => {
     e.preventDefault();
     if (!$("#discovery-services .service-picker")) {
@@ -744,6 +748,9 @@ function discover() {
     delete data["provider-search"];
     state.filters = {
       ...data,
+      castPeople: castSelection.slice(),
+      castMatch: $("#cast-match").value,
+      with_cast: castSelection.map(person=>person.id).join($("#cast-match").value==="all" ? "," : "|"),
       providerIds,
       useMyServices,
       hideWatched: $("#hide-watched").checked,
@@ -997,6 +1004,8 @@ async function fetchDiscover(append = false) {
             watch_region: f.watch_region || state.streamingRegion,
           };
     for (const key of [
+      "castPeople",
+      "castMatch",
       "hideWatched",
       "providerIds",
       "useMyServices",
@@ -1008,13 +1017,13 @@ async function fetchDiscover(append = false) {
     ])
       delete params[key];
     const data = await tmdb(
-      state.mode === "search" ? "search/movie" : f.trending ? "trending/movie/week" : "discover/movie",
-      f.trending && state.mode !== "search" ? {page:nextPage, include_availability:state.viewingMode !== "all" || providerIds.length > 0} : { ...params, page: nextPage, include_adult: false },
+      state.mode === "search" ? "search/movie" : f.trending && !f.with_cast ? "trending/movie/week" : "discover/movie",
+      f.trending && !f.with_cast && state.mode !== "search" ? {page:nextPage, include_availability:state.viewingMode !== "all" || providerIds.length > 0} : { ...params, page: nextPage, include_adult: false },
     );
     if (request !== state.request || !results.isConnected) return;
     let lastPage = nextPage;
     const totalPages = Math.min(data.total_pages || 1, 500);
-    const trending = f.trending && state.mode !== "search";
+    const trending = f.trending && !f.with_cast && state.mode !== "search";
     const types = state.viewingMode === "buy-rent" ? ["rent","buy"] : state.viewingMode === "all" ? ["flatrate","free","ads","rent","buy"] : ["flatrate","free","ads"];
     const selectMovies = async batch => {
       let movies = batch.filter(movie => !movie.adult);

@@ -1181,3 +1181,12 @@ textarea:focus {
 .movie-options-section select { width: 100%; }
 .configure-services { display: block; padding: 4px 12px 16px; color: var(--accent); }
 .my-services:has(input:disabled) { opacity: .65; }
+
+.cast-filter { grid-column: 1 / -1; }
+.cast-selected { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+.cast-chip { border: 1px solid #65537f; border-radius: 20px; padding: 8px 12px; background: #292139; color: #eee8fa; cursor: pointer; }
+.cast-results { display: grid; gap: 4px; max-height: 270px; overflow: auto; margin-bottom: 12px; }
+.cast-result { display: flex; gap: 12px; align-items: center; width: 100%; text-align: left; padding: 8px; border: 0; border-radius: 10px; background: #22202c; color: inherit; cursor: pointer; }
+.cast-result:hover, .cast-result:focus-visible { background: #342b45; }
+.cast-result img, .cast-avatar { width: 36px; height: 48px; flex-shrink: 0; border-radius: 6px; object-fit: cover; background: #393241; }
+.cast-result small { display: block; color: #aaa3b6; margin-top: 3px; }
