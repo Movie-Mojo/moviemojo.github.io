@@ -378,6 +378,15 @@ const fixture = {
     r.fulfill({ json: data });
   });
   await page.goto("http://localhost:8765");
+  await page.locator('#watched').waitFor();
+  const sliderX=()=>page.locator('.pills').evaluate(element=>new DOMMatrixReadOnly(getComputedStyle(element,'::before').transform).m41);
+  for(const tab of ['watched','dnf']) {
+    const start=await sliderX();await page.locator('#'+tab).click();await page.waitForTimeout(150);const middle=await sliderX();
+    await page.waitForTimeout(950);const end=await sliderX();
+    assert(middle>start && middle<end,'slider must visibly glide toward '+tab);
+  }
+  await page.locator('#unwatched').click();await page.waitForTimeout(1000);
+
   await page.getByRole("heading", { name: "The watchlist." }).waitFor();
   assert.equal(await page.locator(".movie-card").count(), 2);
   assert(

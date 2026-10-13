@@ -1088,7 +1088,7 @@ textarea:focus {
 .pills:has(#watched.active)::before { transform: translateX(100%); }
 .pills:has(#dnf.active)::before { transform: translateX(200%); }
 .pills .pill { position: relative; z-index: 1; background: transparent; }
-@media (prefers-reduced-motion: no-preference) { .pills::before { transition: transform 720ms cubic-bezier(.4,0,.2,1); } }
+@media (prefers-reduced-motion: no-preference) { .pills::before { transition: transform 900ms cubic-bezier(.4,0,.2,1); } }
 
 @media (prefers-reduced-motion: no-preference) {
   .grid > .scroll-pending { opacity: 0; animation: none; }
