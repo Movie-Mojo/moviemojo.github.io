@@ -145,19 +145,38 @@ function movieCredits() {
 }
 let cancelCardPresses = () => {};
 let modalDismissAction = null;
+const modalOverlay=$("#modal-overlay");
+let modalReturnFocus=null, modalBodyOverflow="", modalInertRoots=[];
+Object.defineProperty(modal,"open",{get:()=>!modalOverlay.hidden});
 function closeModal() {
   ++detailRequest;
-  const dismiss = modalDismissAction;
-  modalDismissAction = null;
-  if (dismiss) run(null, dismiss);
-  cancelCardPresses();
-  modal.getAnimations({subtree:true}).forEach(animation => animation.cancel());
-  modal.close();
-  modal.classList.remove("movie-detail-dialog", "from-card");
-  $("#modal-content").replaceChildren();
-  // Detaching a closed native dialog releases any stale top-layer/backdrop state.
-  const replacement=modal.cloneNode(true);
-  modal.replaceWith(replacement);modal=replacement;bindModalEvents();
+  const dismiss=modalDismissAction;modalDismissAction=null;
+  if(dismiss)run(null,dismiss);
+  const wasOpen=modal.open;
+  try {
+    cancelCardPresses();
+    modal.getAnimations({subtree:true}).forEach(animation=>animation.cancel());
+  } finally {
+    // Visibility and background interactivity have one explicit owner.
+    modalOverlay.hidden=true;
+    modal.removeAttribute("open");
+    modal.classList.remove("movie-detail-dialog","from-card");
+    $("#modal-content").replaceChildren();
+    for(const root of modalInertRoots)root.inert=false;
+    modalInertRoots=[];
+    if(wasOpen)document.body.style.overflow=modalBodyOverflow;
+    const focus=modalReturnFocus;modalReturnFocus=null;
+    if(wasOpen && focus?.isConnected && !focus.closest("[inert]"))focus.focus({preventScroll:true});
+  }
+}
+function showAppModal() {
+ modalReturnFocus=document.activeElement;
+ modalBodyOverflow=document.body.style.overflow;
+ document.body.style.overflow="hidden";
+ modalInertRoots=[document.querySelector("header"),app,$("#navigation")].filter(root=>root && !root.inert);
+ modalInertRoots.forEach(root=>root.inert=true);
+ modalOverlay.hidden=false;modal.setAttribute("open","");
+ $("#close-modal").focus({preventScroll:true});
 }
 function openModal(html, source = null) {
   cancelCardPresses();
@@ -165,7 +184,7 @@ function openModal(html, source = null) {
   $("#modal-content").innerHTML = html;
   if (!modal.open) {
     modal.classList.toggle("from-card", !!start);
-    modal.showModal();
+    showAppModal();
     if (start && !matchMedia("(prefers-reduced-motion: reduce)").matches) {
       const end = modal.getBoundingClientRect();
       modal.animate([
@@ -175,14 +194,17 @@ function openModal(html, source = null) {
     }
   }
 }
-function bindModalEvents() {
- const dialog=modal;
- dialog.addEventListener("cancel",event=>{event.preventDefault();if(dialog===modal)closeModal();});
- dialog.addEventListener("close",()=>{if(dialog!==modal || dialog.open)return;++detailRequest;dialog.classList.remove("movie-detail-dialog","from-card");});
- dialog.querySelector("#close-modal").onclick=()=>{if(dialog===modal)closeModal();};
- dialog.addEventListener("click",event=>{if(dialog===modal && event.target===dialog)closeModal();});
-}
-bindModalEvents();
+$("#close-modal").onclick=closeModal;
+modalOverlay.addEventListener("click",event=>{if(event.target===modalOverlay)closeModal();});
+modalOverlay.addEventListener("keydown",event=>{
+ if(event.key==="Escape"){event.preventDefault();closeModal();return;}
+ if(event.key!=="Tab" || !modal.open)return;
+ const controls=[...modal.querySelectorAll('button:not(:disabled),a[href],input:not(:disabled),select:not(:disabled),textarea:not(:disabled),summary,[tabindex="0"]')].filter(control=>control.getClientRects().length && !control.closest("[hidden]"));
+ const first=controls[0],last=controls.at(-1);
+ if(!first){event.preventDefault();modal.focus();return;}
+ if(event.shiftKey && (document.activeElement===first || document.activeElement===modal)){event.preventDefault();last.focus();}
+ else if(!event.shiftKey && document.activeElement===last){event.preventDefault();first.focus();}
+});
 function empty(title, body, action = "") {
   return `<div class="empty"><h3>${esc(title)}</h3><p class="muted">${esc(body)}</p>${action}</div>`;
 }

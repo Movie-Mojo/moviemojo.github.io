@@ -58,7 +58,7 @@ const assert=require('node:assert/strict');
  assert.equal(await page.evaluate(()=>securityFixture.ratings.history1),4,'personal status preserves rating');
  for(let i=0;i<3;i++) {
   await page.locator('#profile-history .movie-card').first().click();await page.locator('.personal-rating').waitFor();await page.locator('#close-modal').click();
-  await page.locator('[data-tab="groups"]').click();assert.equal(await page.locator('dialog:modal').count(),0);await page.locator('#group-name').click();assert.equal(await page.evaluate(()=>document.activeElement.id),'group-name');
+  await page.locator('[data-tab="groups"]').click();assert.equal(await page.locator('#modal-overlay:not([hidden])').count(),0);await page.locator('#group-name').click();assert.equal(await page.evaluate(()=>document.activeElement.id),'group-name');
   await page.locator('[data-tab="profile"]').click();await page.locator('#profile-history .movie-card').first().waitFor();
  }
 
@@ -72,7 +72,7 @@ const assert=require('node:assert/strict');
  await page.screenshot({path:'/tmp/mojo-profile-settings-page.png',fullPage:true});
  await page.getByRole('button',{name:'Open settings',exact:true}).click();
  assert.equal(await page.locator('[data-settings]').count(),4);
- await page.locator("dialog").evaluate(el=>Promise.all(el.getAnimations().map(animation=>animation.finished.catch(()=>{}))));
+ await page.locator("#modal").evaluate(el=>Promise.all(el.getAnimations().map(animation=>animation.finished.catch(()=>{}))));
  await page.screenshot({path:'/tmp/mojo-settings-menu.png'});
  await page.locator('[data-settings="security"]').click();
  assert.equal(await page.getByText('SMS',{exact:false}).count(),0);
