@@ -1153,7 +1153,7 @@ async function details(movie, entry = null, source = null) {
     ];
   const region = state.filters.watch_region || state.streamingRegion;
   openModal(
-    `${poster ? `<img class="detail-poster" src="${esc(poster)}" alt="${esc(movie.title)} poster">` : ""}<div class="detail-heading"><p class="eyebrow">${entry ? "On your watchlist" : "Worth a watch"}</p><h2>${esc(data.title || movie.title)}</h2><p class="muted">${esc(data.release_date?.slice(0, 4) || movie.release_year || "")} ${data.runtime ? "· " + data.runtime + " min" : ""}</p>${data.vote_average ? `<p>★ ${Number(data.vote_average).toFixed(1)} <span class="muted">TMDB audience score</span></p>` : ""}${trailer || data.external_ids?.imdb_id ? `<div class="movie-links">${trailer ? `<a class="movie-link" href="https://www.youtube.com/watch?v=${encodeURIComponent(trailer.key)}" target="_blank" rel="noopener" aria-label="Watch trailer on YouTube"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 5 11 7-11 7Z"/></svg> Trailer</a>` : ""}${data.external_ids?.imdb_id ? `<a class="movie-link" href="https://www.imdb.com/title/${encodeURIComponent(data.external_ids.imdb_id)}/" target="_blank" rel="noopener" aria-label="View movie on IMDb">IMDb <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 4h6v6M20 4l-9 9M10 4H5a1 1 0 0 0-1 1v14a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-5"/></svg></a>` : ""}</div>` : ""}</div>${!entry ? `<div class="movie-save"><label for="save-group">Add to watchlist</label><div class="movie-save-row"><select id="save-group" ${!state.groups.length ? "disabled" : ""}>${state.groups.length ? state.groups.map((g) => `<option value="${g.group_id}" ${g.group_id === state.group?.group_id ? "selected" : ""}>${esc(g.group_name)}</option>`).join("") : '<option>Create a watchlist first</option>'}</select><button id="save-movie" class="button" ${!state.groups.length ? "disabled" : ""}>Add</button></div><details class="save-note"><summary>Add a note (optional)</summary><label for="suggestion-note">Suggestion note</label><textarea id="suggestion-note" maxlength="500" rows="2" placeholder="Why should we watch this?"></textarea></details></div>` : ""}${entry ? `<div class="movie-save movie-watchlist"><button id="toggle-watched" class="button">${entry.watched ? "Move to watchlist" : "Mark watched"}</button><div class="suggestion"><p class="muted">Added by ${esc(contributorName(entry))}</p>${entry.suggestion_note ? `<blockquote>${esc(entry.suggestion_note)}</blockquote>` : ""}${entry.added_by === state.user.id ? `<details class="save-note"><summary>${entry.suggestion_note ? "Edit note" : "Add a note (optional)"}</summary><form id="note-form"><label for="edit-note">Your suggestion note (optional)</label><textarea id="edit-note" maxlength="500" rows="2" placeholder="Why should we watch this?">${esc(entry.suggestion_note || "")}</textarea><button class="button secondary" type="submit">Save note</button></form></details>` : ""}</div></div>` : ""}<p class="overview">${esc(data.overview || movie.description || "No synopsis available for this movie.")}</p>${watchOptions(providers, region)}${entry ? `<div class="details-actions"><button id="remove-movie" class="button danger">Remove</button></div>` : ""}`,
+    `${poster ? `<img class="detail-poster" src="${esc(poster)}" alt="${esc(movie.title)} poster">` : ""}<div class="detail-heading"><p class="eyebrow">${entry ? "On your watchlist" : "Worth a watch"}</p><h2>${esc(data.title || movie.title)}</h2><p class="muted">${esc(data.release_date?.slice(0, 4) || movie.release_year || "")} ${data.runtime ? "· " + data.runtime + " min" : ""}</p>${data.vote_average ? `<p>★ ${Number(data.vote_average).toFixed(1)} <span class="muted">TMDB audience score</span></p>` : ""}${trailer || data.external_ids?.imdb_id ? `<div class="movie-links">${trailer ? `<a class="movie-link" href="https://www.youtube.com/watch?v=${encodeURIComponent(trailer.key)}" target="_blank" rel="noopener" aria-label="Watch trailer on YouTube"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 5 11 7-11 7Z"/></svg> Trailer</a>` : ""}${data.external_ids?.imdb_id ? `<a class="movie-link" href="https://www.imdb.com/title/${encodeURIComponent(data.external_ids.imdb_id)}/" target="_blank" rel="noopener" aria-label="View movie on IMDb">IMDb <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 4h6v6M20 4l-9 9M10 4H5a1 1 0 0 0-1 1v14a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-5"/></svg></a>` : ""}</div>` : ""}</div>${!entry ? `<div class="movie-save"><label for="save-group">Add to watchlist</label><div class="movie-save-row"><select id="save-group" ${!state.groups.length ? "disabled" : ""}>${state.groups.length ? state.groups.map((g) => `<option value="${g.group_id}" ${g.group_id === state.group?.group_id ? "selected" : ""}>${esc(g.group_name)}</option>`).join("") : '<option>Create a watchlist first</option>'}</select><button id="save-movie" class="button" ${!state.groups.length ? "disabled" : ""}>Add</button></div><button id="save-watched" type="button" class="link-button save-watched" ${!state.groups.length ? "disabled" : ""}>Add as already watched</button><details class="save-note"><summary>Add a note (optional)</summary><label for="suggestion-note">Suggestion note</label><textarea id="suggestion-note" maxlength="500" rows="2" placeholder="Why should we watch this?"></textarea></details></div>` : ""}${entry ? `<div class="movie-save movie-watchlist"><button id="toggle-watched" class="button">${entry.watched ? "Move to watchlist" : "Mark watched"}</button><div class="suggestion"><p class="muted">Added by ${esc(contributorName(entry))}</p>${entry.suggestion_note ? `<blockquote>${esc(entry.suggestion_note)}</blockquote>` : ""}${entry.added_by === state.user.id ? `<details class="save-note"><summary>${entry.suggestion_note ? "Edit note" : "Add a note (optional)"}</summary><form id="note-form"><label for="edit-note">Your suggestion note (optional)</label><textarea id="edit-note" maxlength="500" rows="2" placeholder="Why should we watch this?">${esc(entry.suggestion_note || "")}</textarea><button class="button secondary" type="submit">Save note</button></form></details>` : ""}</div></div>` : ""}<p class="overview">${esc(data.overview || movie.description || "No synopsis available for this movie.")}</p>${watchOptions(providers, region)}${entry ? `<div class="details-actions"><button id="remove-movie" class="button danger">Remove</button></div>` : ""}`,
   );
   if (entry && state.tab === "discover") {
     const memberships = destinationMemberships;
@@ -1211,17 +1211,22 @@ async function details(movie, entry = null, source = null) {
         closeModal();
         toast("Removed from watchlist.");
       });
-  } else
-    $("#save-movie").onclick = (e) =>
-      run(e.currentTarget, async () => {
-        await saveMovie(
-          data,
-          $("#save-group").value,
-          $("#suggestion-note").value,
-        );
-        closeModal();
-        toast("Added to your watchlist.");
+  } else {
+    ["#save-movie","#save-watched"].forEach(selector=>{
+      $(selector).onclick=e=>run(e.currentTarget,async()=>{
+        const watched=selector==="#save-watched";
+        const other=$(watched ? "#save-movie" : "#save-watched");
+        other.disabled=true;
+        try {
+          const groupId=$("#save-group").value;
+          const groupName=state.groups.find(group=>group.group_id===groupId)?.group_name || "your watchlist";
+          await saveMovie(data,groupId,$("#suggestion-note").value,watched);
+          closeModal();
+          toast(watched ? "Added to watched movies in "+groupName+"." : "Added to "+groupName+".");
+        } finally { if(other.isConnected) other.disabled=false; }
       });
+    });
+  }
 }
 async function setWatched(entry, value) {
   const rows = checked(
@@ -1240,7 +1245,7 @@ async function setWatched(entry, value) {
   render();
   toast(value ? "Added to watched movies." : "Moved back to your watchlist.");
 }
-async function saveMovie(movie, groupId, note = "") {
+async function saveMovie(movie, groupId, note = "", watched = false) {
   note = note.trim();
   if (note.length > 500) throw new Error("Keep your note to 500 characters.");
   if (!groupId) throw new Error("Create a watchlist first.");
@@ -1284,8 +1289,11 @@ async function saveMovie(movie, groupId, note = "") {
       group_id: groupId,
       added_by: state.user.id,
       suggestion_note: note,
+      watched,
+      watched_at: watched ? new Date().toISOString() : null,
     }),
   );
+  state.profileHistory=null;
   if (groupId === state.group?.group_id) await loadMovies();
 }
 function manualAdd() {
