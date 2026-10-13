@@ -1127,9 +1127,7 @@ textarea:focus {
 @media (prefers-reduced-motion: no-preference) { .startup-shell .skeleton-card { animation: skeleton-pulse 1.4s ease-in-out infinite alternate; } }
 @keyframes skeleton-pulse { from { opacity: .5; } to { opacity: 1; } }
 
-.discover-watchlist { margin: 20px 0; padding: 16px; border: 1px solid #b5a0ff40; border-radius: 16px; background: #b5a0ff0a; }
-.discover-watchlist label { color: var(--accent); font-weight: 600; }
-.discover-watchlist select { font-size: 16px; font-weight: 600; }
-.discover-watchlist p { margin: 9px 0 0; font-size: 12px; color: var(--muted); }
+ .discover-list-select { width: auto; max-width: min(260px, 45%); padding: 8px 28px 8px 10px; font-size: 12px; font-weight: 500; border-radius: 10px; background-color: #ffffff04; color: #c9bfdc; }
+@media(max-width:480px) { .section-row:has(.discover-list-select) { flex-wrap: wrap; gap: 8px; } .discover-list-select { max-width: 100%; } }
 .copy-watchlist { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--line); }
 .copy-watchlist label { line-height: 1.5; }

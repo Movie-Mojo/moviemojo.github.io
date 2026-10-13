@@ -184,7 +184,8 @@ const fixture = {
           },
           from: (table) => {
             const chain = {
-              select() {
+              select(columns) {
+                if(columns === "group_id") chain.membershipRead = true;
                 return chain;
               },
               eq(key,value) {
@@ -224,6 +225,7 @@ const fixture = {
               },
               insert(value) {
                 fixture.lastCopy = value;
+                if(fixture.memberships && value.group_id) fixture.memberships.push({group_id:value.group_id});
                 return chain;
               },
               delete() {
@@ -231,7 +233,7 @@ const fixture = {
               },
               then(resolve) {
                 return Promise.resolve({
-                  data: chain.duplicateCheck ? [] : chain.changed
+                  data: chain.membershipRead ? (fixture.memberships || []) : chain.duplicateCheck ? [] : chain.changed
                     ? [{ id: "list1" }]
                     : table === "group_movies"
                       ? fixture.movies
@@ -637,6 +639,7 @@ const fixture = {
   );
   assert.equal(await page.locator("#results .movie-card").count(),2,"soundtracks and undated results should be excluded");
   assert(await page.locator("#results .movie-card").first().textContent().then(t=>t.includes("2010")), "established movie should rank first");
+  await page.evaluate(()=>testData.memberships=[{group_id:"66666666-6666-6666-6666-666666666666"}]);
   await page.locator("#results .movie-card").first().click();
   await page.locator("#modal-content").getByRole("heading", { name: "Inception", exact: true }).waitFor();
   await page.locator(".movie-links .movie-link").first().waitFor();
@@ -653,6 +656,11 @@ const fixture = {
   await page.locator("#copy-watchlist").click();
   await page.waitForFunction(()=>testData.lastCopy?.movie_id === "m1" && testData.lastCopy?.group_id === "22222222-2222-2222-2222-222222222222");
   await page.locator("#close-modal").waitFor({state:"hidden"});
+  await page.locator("#results .movie-card").first().click();
+  await page.getByRole("option",{name:"No available lists"}).waitFor({state:"attached"});
+  assert(await page.locator(".copy-watchlist button").isDisabled());
+  assert.equal(await page.locator("#copy-watchlist").count(),0);
+  await page.locator("#close-modal").click();
   await page.locator("[data-tab=groups]").click();
   await page.getByRole("heading", { name: "Your movie circles." }).waitFor();
   assert.equal(await page.locator("[data-remove-group]").count(), 0);
