@@ -86,6 +86,21 @@ const assert=require('node:assert/strict');
  await page.locator('[data-tab="profile"]').click();await page.getByRole('button',{name:'Open settings',exact:true}).click();await page.locator('[data-settings="security"]').click();
  await page.locator('[data-remove-factor]').click();await page.locator('#remove-mfa-code').fill('123456');await page.locator('#remove-mfa-form button').click();await page.getByRole('button',{name:'Set up authenticator',exact:true}).waitFor();
  assert.equal(await page.evaluate(()=>securityFixture.factors.length),0);
+ await page.evaluate(()=>{
+  closeModal();
+  app.insertAdjacentHTML("beforeend",'<select id="watch_region"><option>US</option></select><div id="discovery-services"><details open><input name="discovery-provider" value="8" type="checkbox" checked><input class="provider-search" value="net"><input id="use-my-services" type="checkbox" disabled></details></div>');
+  loadProviders=async(region,target,selected,useMy)=>{
+   if(target==="profile-services") document.getElementById(target).innerHTML='<details class="service-picker"><input name="profile-provider" value="8" type="checkbox" checked></details>';
+   else {securityFixture.refreshed={region,selected,useMy};document.getElementById(target).innerHTML='<details><input class="provider-search"><input id="use-my-services" type="checkbox" '+(state.streamingServices.length?'':'disabled')+'></details>';}
+  };
+  streamingSettings();
+ });
+ await page.locator('#streaming-profile button[type=submit]').click();
+ await page.waitForFunction(()=>securityFixture.refreshed);
+ assert.equal(await page.locator('#use-my-services').isDisabled(),false);
+ assert.equal(await page.locator('#discovery-services details').getAttribute('open'),'');
+ assert.equal(await page.locator('#discovery-services .provider-search').inputValue(),'net');
+ assert.deepEqual(await page.evaluate(()=>securityFixture.refreshed.selected),[8]);
  assert.equal(errors.length,0,errors.join('\n'));
  console.log('PASS: profile bio/history/filter/edit, categorized settings, signed-in password change, QR cancellation and verification, MFA login gate and removal; no SMS UI.');
  await browser.close();

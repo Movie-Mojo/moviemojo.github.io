@@ -113,7 +113,18 @@ function streamingSettings() {
         );
       state.streamingServices = ids;
       state.streamingRegion = region;
-      state.results = [];
+      const discoveryServices=$("#discovery-services");
+      if(discoveryServices) {
+        const expanded=!!discoveryServices.querySelector("details")?.open;
+        const selected=Array.from(discoveryServices.querySelectorAll('input[name="discovery-provider"]:checked'),input=>Number(input.value));
+        const useMy=!!discoveryServices.querySelector("#use-my-services")?.checked;
+        const search=discoveryServices.querySelector(".provider-search")?.value || "";
+        await loadProviders($("#watch_region").value,"discovery-services",selected,useMy);
+        const picker=discoveryServices.querySelector("details");
+        if(picker) picker.open=expanded;
+        const searchInput=discoveryServices.querySelector(".provider-search");
+        if(searchInput && search) {searchInput.value=search;searchInput.dispatchEvent(new Event("input",{bubbles:true}));}
+      }
       toast("Streaming services saved.");
     });
   };

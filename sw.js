@@ -1,12 +1,12 @@
-const CACHE = "mojo-shell-v57";
+const CACHE = "mojo-shell-v58";
 const SHELL = [
   "./",
   "./index.html",
-  "./style.css?v=57",
-  "./profile-settings.js?v=57",
-  "./account-security.js?v=57",
-  "./app.js?v=57",
-  "./config.js?v=57",
+  "./style.css?v=58",
+  "./profile-settings.js?v=58",
+  "./account-security.js?v=58",
+  "./app.js?v=58",
+  "./config.js?v=58",
   "./manifest.json",
   "./assets/tmdb-logo.svg",
   "./icon-192.png",
