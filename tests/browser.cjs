@@ -809,6 +809,15 @@ const fixture = {
   const pending = page.locator(".scroll-pending").first();
   await pending.evaluate(el=>el.scrollIntoView({block:"center"}));
   await page.waitForFunction(() => [...document.querySelectorAll(".grid > *")].some(el => el.getAnimations().some(a=>a.effect.getTiming().duration===900)), null, {timeout:3000});
+  await page.evaluate(async()=>{state.tab="discover";state.movies=[];await details({id:27205,title:"Inception"});});
+  await page.locator("#save-watched").waitFor();
+  await page.locator("#save-group").selectOption("22222222-2222-2222-2222-222222222222");
+  await page.locator("#save-watched").click();
+  await page.locator("#close-modal").waitFor({state:"hidden"});
+  const watchedInsert=await page.evaluate(()=>testData.lastCopy);
+  assert.equal(watchedInsert.group_id,"22222222-2222-2222-2222-222222222222");
+  assert.equal(watchedInsert.watched,true);
+  assert(Number.isFinite(Date.parse(watchedInsert.watched_at)));
   assert.equal(errors.length, 0, errors.join("\n"));
   console.log(
     "PASS: mobile overflow, watchlist separation, picker excludes watched, mark watched, saved/reloaded streaming profiles, multi-select and My services filters, provider search, year ranges, title search, details, invites, desktop layout, no JS errors.",

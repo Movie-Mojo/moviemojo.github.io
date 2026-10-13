@@ -1194,3 +1194,5 @@ textarea:focus {
 .advanced-filters { margin: 16px 0; border-top: 1px solid #34303e; }
 .advanced-filters > summary { cursor: pointer; padding: 14px 0; font-weight: 600; }
 .advanced-filters > .filter-grid { margin-bottom: 16px; }
+
+.movie-save .save-watched { display: inline-flex; padding: 10px 0 2px; font-size: 13px; }
