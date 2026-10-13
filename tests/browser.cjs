@@ -496,6 +496,7 @@ const fixture = {
   );
   await page.locator("[data-tab=discover]").click();
   await page.locator("#results .movie-card").waitFor();
+  assert.equal(await page.locator("#discover-watchlist").inputValue(), "66666666-6666-6666-6666-666666666666");
   assert.equal(await page.locator('[data-mood="0"]').getAttribute("aria-pressed"), "true");
   assert(urls.some(u=>u.includes("/trending/movie/week")));
   assert(!urls.some(u=>u.includes("/trending/movie/week") && u.includes("page=2")), "no automatic extra pages");
@@ -649,7 +650,9 @@ const fixture = {
   }
   await page.setViewportSize({width:390,height:844});
   await page.screenshot({path:"/tmp/mojo-mobile-movie-links.png"});
-  await page.locator("#close-modal").click();
+  await page.locator("#copy-watchlist").click();
+  await page.waitForFunction(()=>testData.lastCopy?.movie_id === "m1" && testData.lastCopy?.group_id === "22222222-2222-2222-2222-222222222222");
+  await page.locator("#close-modal").waitFor({state:"hidden"});
   await page.locator("[data-tab=groups]").click();
   await page.getByRole("heading", { name: "Your movie circles." }).waitFor();
   assert.equal(await page.locator("[data-remove-group]").count(), 0);
