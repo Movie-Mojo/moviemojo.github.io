@@ -97,6 +97,9 @@ const fixture = {
             },
           },
           rpc: async (name, args) => {
+            if(name==="mojo_profile_details")return {data:{name:args.person===fixture.user.id ? fixture.displayName || "Friend" : "Sam",bio:"A movie fan",friend_count:1,group_count:2},error:null};
+            if(name==="mojo_group_ratings")return {data:fixture.movies.filter(movie=>movie.watched || movie.dnf).map(movie=>{const own=(fixture.personalRatings || []).find(rating=>rating.movie_id===movie.movies.id && rating.user_id===fixture.user.id);const ratings=[{user_id:fixture.user.id,name:"You",stars:own?.stars || null},{user_id:"33333333-3333-3333-3333-333333333333",name:"Sam",stars:2}];return {movie_id:movie.movies.id,ratings,average:own ? (own.stars+2)/2 : 2};}),error:null};
+            if(name==="mojo_set_history_status"){fixture.historyStatus=args.completion;return {data:{movies:[{id:"history1",title:"Arrival",release_year:2016,status:args.completion}],excluded:[]},error:null};}
             if(name==="mojo_completed_movies")return {data:fixture.movies.filter(movie=>movie.watched || movie.dnf).map(movie=>({movie_id:movie.movies.id})),error:null};
             if(name==="mojo_mark_completion") {
               const entry=fixture.movies.find(movie=>movie.id===args.target_entry);
@@ -143,6 +146,8 @@ const fixture = {
                 id: "history1",
                 title: "Arrival",
                 release_year: 2016,
+                status:fixture.historyStatus || "watched",
+                personal_rating:4,
               };
               return {
                 data: {
@@ -500,6 +505,7 @@ const fixture = {
   await page.locator("#profile-excluded details summary").click();
   await page.locator("[data-profile-restore]").click();
   await page.getByRole("heading", { name: "Arrival", exact: true }).waitFor();
+  await page.locator("#edit-profile").click();
   await page.locator("#display-name").fill("Alex");
   await page.locator("#display-name-form button").click();
   await page.waitForFunction(() => testData.displayName === "Alex");
@@ -743,11 +749,12 @@ const fixture = {
   await page.locator("#close-modal").click();
   await page.locator("[data-tab=friends]").click();
   await page.getByRole("heading", { name: "Friends.", exact: true }).waitFor();
-  await page.getByRole("heading", { name: "Sam", exact: true }).waitFor();
+  await page.getByRole("button", { name: "View Sam’s profile", exact: true }).waitFor();
   await page.locator("[data-history-person]").click();
   await page.getByRole("heading", { name: "Arrival", exact: true }).waitFor();
   assert.equal(await page.locator("[data-history]").count(), 0);
-  await page.locator("#close-modal").click();
+  await page.locator("#back-to-friends").click();
+  await page.locator(".friends-connect > summary").click();
   await page
     .locator("#friend-code")
     .fill("44444444-4444-4444-4444-444444444444");
@@ -843,6 +850,7 @@ const fixture = {
   await page.locator("#dnf").click();assert.equal(await page.locator(".movie-card").count(),1);
   await page.evaluate(()=>movieActions(state.movies[0]));
   assert.equal(await page.locator(".rating-star.filled").count(),4);
+  assert(await page.locator(".group-rating-panel").textContent().then(text=>text.includes("3.0/5") && text.includes("Sam")),"group average and individual members should be visible");
   await page.screenshot({path:"/tmp/mojo-dnf-rating-mobile.png"});
   await page.locator("#close-modal").click();
   await page.evaluate(async()=>{state.user={...state.user,id:"99999999-9999-9999-9999-999999999999"};await loadMovies();render();movieActions(state.movies[0]);});

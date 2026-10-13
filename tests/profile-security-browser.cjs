@@ -23,6 +23,8 @@ const assert=require('node:assert/strict');
     }
    },
    rpc:async(name,args)=>{
+    if(name==='mojo_profile_details')return ok({name:fixture.name,bio:fixture.bio,friend_count:2,group_count:1});
+    if(name==='mojo_set_history_status'){history.find(m=>m.id===args.movie).status=args.completion;return ok({name:fixture.name,movies:history.filter(m=>!fixture.removed.includes(m.id)).map(m=>({...m,personal_rating:fixture.ratings[m.id] || null})),excluded:[]});}
     if(name==='mojo_personal_list') return ok('personal');
     if(name==='get_user_groups_with_counts'){fixture.groupReads++;return ok([{group_id:'personal',group_name:'My personal list',created_by:user.id,member_count:1}]);}
     if(name==='mojo_group_contributors')return ok([]);
@@ -40,6 +42,8 @@ const assert=require('node:assert/strict');
  await page.locator('#profile-history .movie-card').first().waitFor();
  assert.equal(await page.getByRole('button',{name:'Open settings',exact:true}).count(),1);
  assert.equal(await page.locator('#streaming-profile').count(),0);
+ assert.equal(await page.locator('#profile-bio').count(),0,'name and bio should be static');
+ await page.locator('#edit-profile').click();
  await page.locator('#profile-bio').fill('I love <science fiction> & adventure.');
  await page.locator('#display-name-form button').click();
  await page.waitForFunction(()=>securityFixture.bio==='I love <science fiction> & adventure.');
@@ -50,6 +54,14 @@ const assert=require('node:assert/strict');
  await page.locator('#close-modal').click();assert(await page.locator('#profile-history .history-status').first().textContent().then(text=>text.includes('4/5')));
  await page.locator('#profile-history .movie-card').nth(1).click();await page.getByRole('button',{name:'Rate 1 star',exact:true}).click();await page.waitForFunction(()=>securityFixture.ratings.history2===1);await page.locator('#close-modal').click();
  assert(await page.locator('#profile-history .history-status').nth(1).textContent().then(text=>text.includes('Did not finish')));
+ await page.locator('#profile-history .movie-card').first().click();await page.locator('#personal-history-status').click();await page.waitForFunction(()=>document.querySelector('#profile-history .history-status')?.textContent.includes('Did not finish'));
+ assert.equal(await page.evaluate(()=>securityFixture.ratings.history1),4,'personal status preserves rating');
+ for(let i=0;i<3;i++) {
+  await page.locator('#profile-history .movie-card').first().click();await page.locator('.personal-rating').waitFor();await page.locator('#close-modal').click();
+  await page.locator('[data-tab="groups"]').click();assert.equal(await page.locator('dialog:modal').count(),0);await page.locator('#group-name').click();assert.equal(await page.evaluate(()=>document.activeElement.id),'group-name');
+  await page.locator('[data-tab="profile"]').click();await page.locator('#profile-history .movie-card').first().waitFor();
+ }
+
 
  await page.locator('#profile-options').click();assert.equal(await page.locator('.movie-options-section').nth(1).getAttribute('open'),null);await page.locator('.movie-options-section summary').nth(1).click();await page.locator('#profile-genre').selectOption('28');await page.locator('#profile-history-options button').click();
  await page.waitForFunction(()=>document.querySelectorAll('#profile-history .movie-card').length===1);
