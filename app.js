@@ -904,12 +904,14 @@ async function loadProviders(region, target, selected = [], useMy = false) {
         .filter((p) => selectedSet.has(p.provider_id))
         .map((p) => serviceIdentity(p).toLowerCase()),
     );
+    const savedServiceIds=new Set(state.streamingServices.map(Number));
+    const savedFamilies=new Set(catalog.filter(provider=>savedServiceIds.has(provider.provider_id)).map(provider=>serviceIdentity(provider).toLowerCase()));
     host.innerHTML = `<details class="service-picker"><summary><span class="service-summary">${isDiscovery ? "Any streaming service" : "Choose your services"}</span></summary><div class="service-options">${isDiscovery ? `<label class="service-option my-services"><input id="use-my-services" type="checkbox" ${useMy && state.streamingServices.length ? "checked" : ""} ${!state.streamingServices.length ? "disabled" : ""}><span>My streaming services<small>${state.streamingServices.length ? state.streamingServices.length + " saved in Settings" : "Configure your services in Settings first"}</small></span></label>${!state.streamingServices.length ? '<a href="#profile" class="configure-services">Set up streaming services</a>' : ""}` : ""}<input class="provider-search" type="search" placeholder="Find a service…" aria-label="Find a streaming service"><div class="provider-list-options">${providers.map((p) => `<label class="service-option" data-provider-name="${esc(p.provider_name.toLowerCase())}" data-search-names="${esc(p.provider_name.toLowerCase() + " " + p.searchNames.join(" "))}" data-default="${defaultIds.has(p.provider_id)}"><input type="checkbox" name="${name}" value="${p.provider_id}" ${p.variantIds.some((id) => selectedSet.has(id)) || selectedFamilies.has(p.provider_name.toLowerCase()) ? "checked" : ""}>${p.logo_path ? `<img src="${image(p.logo_path)}" alt="" loading="lazy">` : ""}<span>${esc(p.provider_name)}</span></label>`).join("")}</div><p class="provider-empty muted" hidden>No services match that name.</p></div></details>`;
     const setupLink=host.querySelector(".configure-services");
     if(setupLink) setupLink.onclick=e=>{e.preventDefault(); streamingSettings();};
     const updateSummary = () => {
       const count = host.querySelectorAll(
-        `input[name="${name}"]:checked`,
+        `input[name="${name}"]:checked:enabled`,
       ).length;
       const mine = !!$("#use-my-services", host)?.checked;
       $(".service-summary", host).textContent = mine
@@ -928,13 +930,18 @@ async function loadProviders(region, target, selected = [], useMy = false) {
       const e = { target: $(".provider-search", host) };
       const query = e.target.value.trim().toLowerCase();
       let visible = 0;
+      const mine=!!$("#use-my-services",host)?.checked;
       host.querySelectorAll("[data-provider-name]").forEach((row) => {
-        row.hidden = query
+        const included=mine && savedFamilies.has(row.dataset.providerName);
+        $("input",row).disabled=included;
+        row.hidden = included || (query
           ? !row.dataset.searchNames.includes(query)
-          : row.dataset.default !== "true" && !$("input", row).checked;
+          : row.dataset.default !== "true" && !$("input", row).checked);
         if (!row.hidden) visible++;
       });
       $(".provider-empty", host).hidden = visible > 0;
+      $(".provider-empty", host).textContent=mine ? "No additional services match. Your saved services are already included." : "No services match that name.";
+      updateSummary();
     };
     $(".provider-search", host).oninput = filterRows;
     host.addEventListener("change", filterRows, {

@@ -590,7 +590,12 @@ const fixture = {
   assert.equal(lastDiscover().searchParams.get("with_watch_monetization_types"), "flatrate|free|ads");
   assert.equal(await page.locator("details.filters").evaluate((panel) => panel.open), false);
   await page.locator("details.filters > summary").click();
+  assert.equal(await page.locator('[data-provider-name="netflix"]').isHidden(),true);
+  await page.locator("#discovery-services .provider-search").fill("netflix");
+  assert.equal(await page.locator('[data-provider-name="netflix"]').isHidden(),true);
+  await page.locator("#discovery-services .provider-search").fill("");
   await page.locator("#use-my-services").uncheck();
+  assert.equal(await page.locator('[data-provider-name="netflix"]').isVisible(),true);
   await page.locator('[name="discovery-provider"][value="8"]').check();
   await page.locator('[name="discovery-provider"][value="9"]').check();
   await page.locator("#filter-form button[type=submit]").click();
