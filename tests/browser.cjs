@@ -97,6 +97,15 @@ const fixture = {
             },
           },
           rpc: async (name, args) => {
+            if(name==="mojo_completed_movies")return {data:fixture.movies.filter(movie=>movie.watched || movie.dnf).map(movie=>({movie_id:movie.movies.id})),error:null};
+            if(name==="mojo_mark_completion") {
+              const entry=fixture.movies.find(movie=>movie.id===args.target_entry);
+              if(!entry)return {error:{message:"Entry not found"}};
+              entry.watched=args.completion==="watched";entry.dnf=args.completion==="dnf";
+              entry.watched_at=entry.watched ? new Date().toISOString() : null;entry.dnf_at=entry.dnf ? new Date().toISOString() : null;
+              if(args.stars!=null){const existing=(fixture.personalRatings ||= []).find(rating=>rating.user_id===state.user.id && rating.movie_id===entry.movies.id);if(existing)existing.stars=args.stars;else fixture.personalRatings.push({user_id:state.user.id,movie_id:entry.movies.id,stars:args.stars});}
+              return {data:null,error:null};
+            }
             if (name === "mojo_invite_valid") return {data:args.invite_code !== "00000000-0000-0000-0000-000000000000",error:null};
             if (name === "mojo_share_invite") return {data:{token:"99999999-9999-9999-9999-999999999999",expires_at:new Date(Date.now()+7*86400000).toISOString()},error:null};
             if (name === "mojo_join_group" || name === "mojo_accept_invite") {
@@ -414,6 +423,7 @@ const fixture = {
   assert.equal(await page.locator("#quick-watched").count(),0,"scrolling must cancel long press");
   await firstCard.dispatchEvent("pointerdown", {button:0,isPrimary:true,clientX:40,clientY:40});
   await page.locator("#quick-watched").waitFor();
+  assert.equal(await page.locator(".personal-rating").count(),0,"uncompleted movies cannot be rated yet");
   await firstCard.dispatchEvent("pointerup");
   await firstCard.dispatchEvent("click");
   assert.equal(await page.locator("#quick-watched").count(),1,"release must not open details");
@@ -463,6 +473,7 @@ const fixture = {
       .then((t) => t.includes("The Dark Knight"))),
   );
   await page.locator("#picked-watched").click();
+  await page.locator("#confirm-completion").click();
   await page.waitForFunction(
     () => document.querySelectorAll(".movie-card").length === 1,
   );
@@ -485,7 +496,7 @@ const fixture = {
   await page.locator("#profile-edit-history").click();
   await page.getByRole("heading", { name: "Arrival", exact: true }).waitFor();
   await page.locator("[data-profile-remove]").click();
-  await page.getByText("No watched movies yet.", { exact: true }).waitFor();
+  await page.getByText("No history entries yet.", { exact: true }).waitFor();
   await page.locator("#profile-excluded details summary").click();
   await page.locator("[data-profile-restore]").click();
   await page.getByRole("heading", { name: "Arrival", exact: true }).waitFor();
@@ -822,9 +833,11 @@ const fixture = {
   await page.waitForFunction(() => [...document.querySelectorAll(".grid > *")].some(el => el.getAnimations().some(a=>a.effect.getTiming().duration===900)), null, {timeout:3000});
   await page.setViewportSize({width:390,height:844});
   await page.evaluate(async()=>{state.tab="watchlist";state.watched=false;state.dnf=false;await loadMovies();render();movieActions(state.movies[0]);});
+  await page.locator("#quick-dnf").click();
   await page.getByRole("button",{name:"Rate 4 stars",exact:true}).click();
+  await page.locator("#confirm-completion").click();
   await page.waitForFunction(()=>testData.personalRatings?.[0]?.stars===4);
-  await page.locator("#quick-dnf").click();await page.locator("#close-modal").waitFor({state:"hidden"});
+  await page.locator("#close-modal").waitFor({state:"hidden"});
   assert.equal(await page.evaluate(()=>testData.movies[0].dnf),true);
   assert.equal(await page.evaluate(()=>testData.movies[0].watched),false);
   await page.locator("#dnf").click();assert.equal(await page.locator(".movie-card").count(),1);
@@ -839,7 +852,7 @@ const fixture = {
   await page.locator("#close-modal").click();
   await page.evaluate(async()=>{state.user=testData.user;await loadMovies();render();movieActions(state.movies[0]);});
   assert.equal(await page.locator(".rating-star.filled").count(),4,"first member rating remains independent");
-  await page.locator("#quick-watched").click();await page.locator("#close-modal").waitFor({state:"hidden"});
+  await page.locator("#quick-watched").click();await page.locator("#confirm-completion").click();await page.locator("#close-modal").waitFor({state:"hidden"});
   assert.equal(await page.evaluate(()=>testData.movies[0].dnf),false);
   assert.equal(await page.evaluate(()=>testData.movies[0].watched),true);
   assert.equal(await page.evaluate(()=>state.personalRatings.m1),4,"status changes preserve personal rating");
