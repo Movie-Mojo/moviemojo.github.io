@@ -663,6 +663,16 @@ const fixture = {
   await page.locator("#close-modal").click();
   await page.locator("[data-tab=groups]").click();
   await page.getByRole("heading", { name: "Your movie circles." }).waitFor();
+  for(const width of [320,375,390,430]) {
+    await page.setViewportSize({width,height:844});
+    for(const form of ["#create-group","#join-group"]) {
+      assert(await page.locator(form).evaluate(el=>{
+        const input=el.querySelector("input").getBoundingClientRect(), button=el.querySelector("button").getBoundingClientRect();
+        return Math.abs((input.top+input.height/2)-(button.top+button.height/2))<2 && input.width>100 && button.width<150 && button.left>=input.right;
+      }),form+" should have a usable input and inline button at "+width);
+    }
+  }
+  await page.setViewportSize({width:390,height:844});
   assert.equal(await page.locator("[data-remove-group]").count(), 0);
   assert.equal(await page.locator("[data-invite]").count(), 1);
   await page.locator("[data-members]").click();
