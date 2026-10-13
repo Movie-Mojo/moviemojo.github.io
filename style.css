@@ -1131,3 +1131,11 @@ textarea:focus {
 @media(max-width:480px) { .section-row:has(.discover-list-select) { flex-wrap: wrap; gap: 8px; } .discover-list-select { max-width: 100%; } }
 .copy-watchlist { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--line); }
 .copy-watchlist label { line-height: 1.5; }
+
+.section-row:has(.watch-sort-controls) { flex-wrap: wrap; gap: 8px; }
+.watch-sort-controls { flex-wrap: nowrap; gap: 6px; margin-left: auto; }
+#watch-sort, #watch-reverse { width: 36px; height: 40px; padding: 8px; flex-shrink: 0; }
+#watch-sort svg { width: 18px; height: 18px; stroke: currentColor; stroke-width: 1.6; fill: var(--surface); stroke-linecap: round; }
+#watch-sort.options-active { color: var(--accent); border: 1px solid #b5a0ff50; }
+.watch-sort-controls .count { white-space: nowrap; margin-left: 2px; font-size: 11px; }
+@media(max-width:480px) { .section-row:has(.watch-sort-controls) .pill { padding: 9px 9px; font-size: 12px; } }
