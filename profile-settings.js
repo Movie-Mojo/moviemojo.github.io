@@ -1,6 +1,6 @@
 const profileGlyphs = {
   account:'<circle cx="12" cy="12" r="9"/><circle cx="12" cy="9" r="3"/><path d="M5 19a7 7 0 0 1 14 0"/>',
-  settings:'<path d="m9 3-1 3-3 1-2 3 2 2-1 3 2 3 3-1 2 2 3-1 1-3 3-1 2-3-2-2 1-3-2-3-3 1-2-2Z"/><circle cx="12" cy="12" r="3"/>',
+  settings:'<path d="M9.2 3.5h5.6l.5 2.2 1.7 1 2.2-.7 2.8 4.8-1.7 1.5v2l1.7 1.5-2.8 4.8-2.2-.7-1.7 1-.5 2.2H9.2l-.5-2.2-1.7-1-2.2.7L2 15.8l1.7-1.5v-2L2 10.8 4.8 6l2.2.7 1.7-1Z" transform="translate(0 -1.25)"/><circle cx="12" cy="12" r="3"/>',
   edit:'<path d="m15 4 5 5-10 10-6 1 1-6Z M13 6l5 5"/>',
   sliders:'<path d="M4 6h16M4 12h16M4 18h16"/><circle cx="9" cy="6" r="2"/><circle cx="15" cy="12" r="2"/><circle cx="9" cy="18" r="2"/>'
 };
@@ -54,7 +54,7 @@ function renderProfileHistory() {
   }));
 }
 function profileHistoryOptions() {
-  openModal(`<h2>Sort &amp; filter watched movies</h2><form id="profile-history-options" class="settings-form"><label for="profile-sort">Sort by</label><select id="profile-sort"><option value="added">Recently watched</option><option value="name">Name</option><option value="date">Release date</option><option value="rating">TMDB rating</option></select><label for="profile-genre">Genre</label><select id="profile-genre"><option value="">All genres</option>${genres.map(([id,name])=>`<option value="${id}">${esc(name)}</option>`).join("")}</select><button class="button">Apply</button></form>`);
+  openModal(`<form id="profile-history-options" class="settings-form"><details class="movie-options-section" open><summary>Sort</summary><label for="profile-sort">Sort by</label><select id="profile-sort"><option value="added">Recently watched</option><option value="name">Name</option><option value="date">Release date</option><option value="rating">TMDB rating</option></select></details><details class="movie-options-section"><summary>Filter</summary><label for="profile-genre">Genre</label><select id="profile-genre"><option value="">All genres</option>${genres.map(([id,name])=>`<option value="${id}">${esc(name)}</option>`).join("")}</select></details><button class="button">Apply</button></form>`);
   $("#profile-sort").value=state.profileSort; $("#profile-genre").value=state.profileGenre;
   $("#profile-history-options").onsubmit=e=>{e.preventDefault();run(e.target.querySelector("button"),async()=>{
     const sort=$("#profile-sort").value, genre=$("#profile-genre").value;

@@ -45,7 +45,7 @@ const assert=require('node:assert/strict');
  await page.waitForFunction(()=>securityFixture.bio==='I love <science fiction> & adventure.');
  await page.locator('#profile-options').click();await page.locator('#profile-sort').selectOption('name');await page.locator('#profile-history-options button').click();
  assert.equal(await page.locator('#profile-history h3').first().textContent(),'Inception');
- await page.locator('#profile-options').click();await page.locator('#profile-genre').selectOption('28');await page.locator('#profile-history-options button').click();
+ await page.locator('#profile-options').click();assert.equal(await page.locator('.movie-options-section').nth(1).getAttribute('open'),null);await page.locator('.movie-options-section summary').nth(1).click();await page.locator('#profile-genre').selectOption('28');await page.locator('#profile-history-options button').click();
  await page.waitForFunction(()=>document.querySelectorAll('#profile-history .movie-card').length===1);
  await page.locator('#profile-edit-history').click();await page.locator('[data-profile-remove]').click();
  await page.waitForFunction(()=>securityFixture.removed.includes('history1'));
