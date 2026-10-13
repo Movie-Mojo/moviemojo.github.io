@@ -96,6 +96,7 @@ const fixture = {
             },
           },
           rpc: async (name, args) => {
+            if (name === "mojo_invite_valid") return {data:args.invite_code !== "00000000-0000-0000-0000-000000000000",error:null};
             if (name === "mojo_share_invite") return {data:{token:"99999999-9999-9999-9999-999999999999",expires_at:new Date(Date.now()+7*86400000).toISOString()},error:null};
             if (name === "mojo_join_group" || name === "mojo_accept_invite") {
               fixture.joinedInvite = args.invite_code;
@@ -719,6 +720,20 @@ const fixture = {
     await page.locator("#close-modal").click();
   }
   const baseURL = page.url().split("#")[0].split("?")[0];
+  for(const dismiss of ["x","escape","backdrop"]) {
+    await page.goto(baseURL+"?invite=99999999-9999-9999-9999-999999999999");
+    await page.locator("#accept-link").waitFor();
+    if(dismiss==="x") await page.locator("#close-modal").click();
+    if(dismiss==="escape") await page.keyboard.press("Escape");
+    if(dismiss==="backdrop") await page.locator("dialog").dispatchEvent("click");
+    await page.waitForFunction(()=>!pendingInvite() && !new URL(location.href).searchParams.has("invite"));
+    await page.reload();
+    await page.locator("#watch-sort").waitFor();
+    assert.equal(await page.locator("dialog").getAttribute("open"),null);
+  }
+  await page.goto(baseURL+"?invite=00000000-0000-0000-0000-000000000000");
+  await page.waitForFunction(()=>!pendingInvite() && !new URL(location.href).searchParams.has("invite"));
+  assert.equal(await page.locator("#accept-link").count(),0,"deleted/expired invite must not show join dialog");
   await page.goto(baseURL + "?invite=77777777-7777-7777-7777-777777777777");
   await page.locator("#accept-link").click();
   await page.waitForFunction(

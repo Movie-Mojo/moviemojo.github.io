@@ -130,7 +130,11 @@ function movieCredits() {
   return `<section class="movie-credits" aria-label="About and credits"><h2>About & credits</h2><a class="tmdb-credit" href="https://www.themoviedb.org/" target="_blank" rel="noopener"><img src="./assets/tmdb-logo.svg" alt="The Movie Database (TMDB)" width="130" height="11"></a><p>Movie data and images provided by TMDB.</p><p>This product uses the TMDB API but is not endorsed or certified by TMDB.</p><p>Streaming availability provided by <a href="https://www.justwatch.com/" target="_blank" rel="noopener">JustWatch</a> via TMDB.</p></section>`;
 }
 let cancelCardPresses = () => {};
+let modalDismissAction = null;
 function closeModal() {
+  const dismiss = modalDismissAction;
+  modalDismissAction = null;
+  if (dismiss) run(null, dismiss);
   cancelCardPresses();
   modal.getAnimations().forEach(animation => animation.cancel());
   modal.close();
@@ -368,16 +372,20 @@ window.addEventListener("hashchange", () => {
   }
 });
 const inviteFromURL = new URL(location.href).searchParams.get("invite");
-if (inviteFromURL && /^[0-9a-f-]{36}$/i.test(inviteFromURL))
+if (inviteFromURL && /^[0-9a-f-]{36}$/i.test(inviteFromURL)) {
   localStorage.setItem("mojo-pending-invite", inviteFromURL);
+  localStorage.removeItem("mojo-dismissed-invite");
+}
 function pendingInvite() {
   return localStorage.getItem("mojo-pending-invite");
 }
 async function handleInvite() {
   const code = pendingInvite() || state.user?.user_metadata?.mojo_invite;
-  if (!code) return;
+  if (!code || (!pendingInvite() && localStorage.getItem("mojo-dismissed-invite") === code)) return;
   const automatic = state.user?.user_metadata?.mojo_invite === code;
   const clear = async () => {
+    modalDismissAction = null;
+    localStorage.setItem("mojo-dismissed-invite", code);
     localStorage.removeItem("mojo-pending-invite");
     const url = new URL(location.href);
     url.searchParams.delete("invite");
@@ -387,6 +395,8 @@ async function handleInvite() {
       state.user.user_metadata.mojo_invite = null;
     }
   };
+  const valid = checked(await db.rpc("mojo_invite_valid", {invite_code:code}));
+  if (!valid) { await clear(); toast("This invite is no longer available. Ask for a new link."); return; }
   const join = async () => {
     const groupId = checked(await db.rpc("mojo_accept_invite", { invite_code: code }));
     await clear();
@@ -408,7 +418,13 @@ async function handleInvite() {
   openModal(
     '<h2>You’re invited to a movie group.</h2><p>Join this group to share its watchlist with the people in it.</p><button id="accept-link" class="button">Join group</button><button id="dismiss-link" class="button secondary">Not now</button>',
   );
-  $("#accept-link").onclick = (e) => run(e.currentTarget, join);
+  modalDismissAction = clear;
+  $("#accept-link").onclick = (e) => run(e.currentTarget, async () => {
+    try { await join(); } catch (error) {
+      if (checked(await db.rpc("mojo_invite_valid", {invite_code:code})) === false) { await clear(); closeModal(); }
+      throw error;
+    }
+  });
   $("#dismiss-link").onclick = async () => {
     await clear();
     closeModal();
