@@ -8,8 +8,8 @@ const assert=require('node:assert/strict');
  await page.route('**/functions/v1/movie-data',route=>route.fulfill({json:{results:[{id:27205,release_date:'2010-07-16',vote_average:8.4,vote_count:100,genres:[{id:28,name:'Action'}]},{id:157336,release_date:'2014-11-07',vote_average:9,vote_count:100,genres:[{id:878,name:'Science Fiction'}]}]}}));
  await page.addInitScript(()=>{
   const user={id:'11111111-1111-1111-1111-111111111111',email:'test@example.invalid'};
-  const fixture=window.securityFixture={factors:[],aal:'aal1',passwordUpdates:0,signouts:0,reauthNeeded:false,groupReads:0,removed:[],bio:'',name:'Test movie fan'};
-  const history=[{id:'history2',title:'Interstellar',tmdb_id:'157336',release_year:2014},{id:'history1',title:'Inception',tmdb_id:'27205',release_year:2010}];
+  const fixture=window.securityFixture={factors:[],aal:'aal1',passwordUpdates:0,signouts:0,reauthNeeded:false,groupReads:0,removed:[],bio:'',ratings:{},name:'Test movie fan'};
+  const history=[{id:'history2',title:'Interstellar',tmdb_id:'157336',release_year:2014,status:'dnf'},{id:'history1',title:'Inception',tmdb_id:'27205',release_year:2010,status:'watched'}];
   const ok=data=>({data,error:null});
   window.supabase={createClient:()=>({
    functions:{invoke:async(name,options)=>{const response=await fetch('https://fhynhdekctvstiolykgo.supabase.co/functions/v1/'+name,{method:'POST',body:JSON.stringify(options.body)});return ok(await response.json());}},
@@ -29,11 +29,11 @@ const assert=require('node:assert/strict');
     if(name==='mojo_watched_profile'){
      if(args.action==='remove')fixture.removed.push(args.movie);
      if(args.action==='restore')fixture.removed=fixture.removed.filter(id=>id!==args.movie);
-     return ok({name:fixture.name,movies:history.filter(m=>!fixture.removed.includes(m.id)),excluded:history.filter(m=>fixture.removed.includes(m.id))});
+     return ok({name:fixture.name,movies:history.filter(m=>!fixture.removed.includes(m.id)).map(m=>({...m,personal_rating:fixture.ratings[m.id] || null})),excluded:history.filter(m=>fixture.removed.includes(m.id))});
     }
     return ok(null);
    },
-   from:table=>{const chain={select(){return chain;},eq(){return chain;},order(){return chain;},limit(){return chain;},update(values){fixture.bio=values.bio;fixture.name=values.display_name;return chain;},maybeSingle:async()=>ok({approved:true,display_name:fixture.name,bio:fixture.bio,streaming_services:[],streaming_region:'US'}),then:resolve=>Promise.resolve(ok(table==='user_profiles'?[{id:user.id}]:[])).then(resolve)};return chain;}
+   from:table=>{const filters={};const chain={select(){return chain;},eq(key,value){filters[key]=value;return chain;},order(){return chain;},limit(){return chain;},insert(values){if(table==='movie_ratings')fixture.ratings[values.movie_id]=values.stars;return chain;},delete(){chain.deleting=true;return chain;},update(values){if(table==='movie_ratings')chain.ratingUpdate=values;else {fixture.bio=values.bio;fixture.name=values.display_name;}return chain;},maybeSingle:async()=>ok({approved:true,display_name:fixture.name,bio:fixture.bio,streaming_services:[],streaming_region:'US'}),then:resolve=>{if(table==='movie_ratings'){if(chain.ratingUpdate)fixture.ratings[filters.movie_id]=chain.ratingUpdate.stars;if(chain.deleting)delete fixture.ratings[filters.movie_id];return Promise.resolve(ok(Object.entries(fixture.ratings).filter(([movieId])=>!filters.movie_id || filters.movie_id===movieId).map(([movieId,stars])=>({movie_id:movieId,stars})))).then(resolve);}return Promise.resolve(ok(table==='user_profiles'?[{id:user.id}]:[])).then(resolve);}};return chain;}
   })};
  });
  await page.goto('http://localhost:8765/#profile');
@@ -45,6 +45,12 @@ const assert=require('node:assert/strict');
  await page.waitForFunction(()=>securityFixture.bio==='I love <science fiction> & adventure.');
  await page.locator('#profile-options').click();await page.locator('#profile-sort').selectOption('name');await page.locator('#profile-history-options button').click();
  assert.equal(await page.locator('#profile-history h3').first().textContent(),'Inception');
+ await page.locator('#profile-history .movie-card').first().click();await page.getByRole('button',{name:'Rate 4 stars',exact:true}).click();await page.waitForFunction(()=>securityFixture.ratings.history1===4);
+ assert.equal(await page.locator('#save-group').count(),0,'history details should show rating, not an add panel');
+ await page.locator('#close-modal').click();assert(await page.locator('#profile-history .history-status').first().textContent().then(text=>text.includes('4/5')));
+ await page.locator('#profile-history .movie-card').nth(1).click();await page.getByRole('button',{name:'Rate 1 star',exact:true}).click();await page.waitForFunction(()=>securityFixture.ratings.history2===1);await page.locator('#close-modal').click();
+ assert(await page.locator('#profile-history .history-status').nth(1).textContent().then(text=>text.includes('Did not finish')));
+
  await page.locator('#profile-options').click();assert.equal(await page.locator('.movie-options-section').nth(1).getAttribute('open'),null);await page.locator('.movie-options-section summary').nth(1).click();await page.locator('#profile-genre').selectOption('28');await page.locator('#profile-history-options button').click();
  await page.waitForFunction(()=>document.querySelectorAll('#profile-history .movie-card').length===1);
  await page.locator('#profile-edit-history').click();await page.locator('[data-profile-remove]').click();
