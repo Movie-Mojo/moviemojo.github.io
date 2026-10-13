@@ -1190,3 +1190,7 @@ textarea:focus {
 .cast-result:hover, .cast-result:focus-visible { background: #342b45; }
 .cast-result img, .cast-avatar { width: 36px; height: 48px; flex-shrink: 0; border-radius: 6px; object-fit: cover; background: #393241; }
 .cast-result small { display: block; color: #aaa3b6; margin-top: 3px; }
+
+.advanced-filters { margin: 16px 0; border-top: 1px solid #34303e; }
+.advanced-filters > summary { cursor: pointer; padding: 14px 0; font-weight: 600; }
+.advanced-filters > .filter-grid { margin-bottom: 16px; }
