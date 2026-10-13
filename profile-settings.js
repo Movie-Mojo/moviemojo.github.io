@@ -14,22 +14,20 @@ function updateAccountControl() {
 let profileLoadVersion=0;
 async function renderProfilePage(refresh=true) {
   const version=++profileLoadVersion;
-  const draftName=!refresh ? $("#display-name")?.value : null, draftBio=!refresh ? $("#profile-bio")?.value : null;
-  app.innerHTML=`<section class="personal-profile"><p class="eyebrow">Your corner of the cinema</p><h1>${esc(state.displayName || "Your profile")}</h1><p class="subtitle">${esc(state.user.email)}</p><form id="display-name-form" class="profile-identity"><label for="display-name">Name</label><input id="display-name" aria-label="Your display name" maxlength="60" required value="${esc(draftName ?? state.displayName)}" placeholder="Your name"><label for="profile-bio">Bio</label><textarea id="profile-bio" maxlength="500" rows="3" placeholder="A little about you and your taste in movies">${esc(draftBio ?? state.bio)}</textarea><button class="button secondary">Save profile</button></form><div class="section-row profile-history-heading"><h2>Watch history</h2><div class="watch-sort-controls"><button id="profile-options" class="button secondary icon-control ${state.profileGenre || state.profileSort!=="added" ? "options-active" : ""}" aria-label="Sort and filter watched movies">${profileIcon("sliders")}</button><button id="profile-reverse" class="button secondary icon-control" aria-label="Reverse watched movie order" aria-pressed="${state.profileReverse}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4v16m-4-4 4 4 4-4M17 20V4m-4 4 4-4 4 4"/></svg></button><button id="profile-edit-history" class="button secondary icon-control" aria-label="${state.profileEditing ? "Finish editing watched history" : "Edit watched history"}" aria-pressed="${state.profileEditing}">${profileIcon("edit")}</button></div></div><p class="muted history-hint">${state.profileGenre ? esc(genres.find(genre=>String(genre[0])===state.profileGenre)?.[1] || "Selected genre")+" · " : ""}${state.profileEditing ? "Remove entries that don’t belong in your history. Group lists stay unchanged." : "Watched and DNF across your groups. The latest status appears here."}</p><div id="profile-history" class="grid"><p class="loading">Loading your movie history…</p></div><div id="profile-excluded"></div></section>`;
-  $("#display-name-form").onsubmit=e=>{e.preventDefault();run($("#display-name-form button"),async()=>{
-    const name=$("#display-name").value.trim(), bio=$("#profile-bio").value.trim();
-    if(!name) throw Error("Enter your name.");
-    const rows=checked(await db.from("user_profiles").update({display_name:name,bio}).eq("id",state.user.id).select("id"));
-    if(!rows.length) throw Error("Could not save your profile.");
-    state.displayName=name; state.bio=bio; $(".personal-profile h1").textContent=name; toast("Profile saved.");
-  });};
+  app.innerHTML=`<section class="personal-profile"><p class="eyebrow">Your corner of the cinema</p><h1>${esc(state.displayName || "Your profile")}</h1><p class="subtitle">${esc(state.user.email)}</p>${state.bio ? `<p class="profile-bio-text">${esc(state.bio)}</p>` : ""}<div id="profile-counts" class="profile-counts"></div><button id="edit-profile" class="button secondary">Edit profile</button><div class="section-row profile-history-heading"><h2>Watch history</h2><div class="watch-sort-controls"><button id="profile-options" class="button secondary icon-control ${state.profileGenre || state.profileSort!=="added" ? "options-active" : ""}" aria-label="Sort and filter watched movies">${profileIcon("sliders")}</button><button id="profile-reverse" class="button secondary icon-control" aria-label="Reverse watched movie order" aria-pressed="${state.profileReverse}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4v16m-4-4 4 4 4-4M17 20V4m-4 4 4-4 4 4"/></svg></button><button id="profile-edit-history" class="button secondary icon-control" aria-label="${state.profileEditing ? "Finish editing watched history" : "Edit watched history"}" aria-pressed="${state.profileEditing}">${profileIcon("edit")}</button></div></div><div id="profile-history" class="grid"><p class="loading">Loading your movie history…</p></div><div id="profile-excluded"></div></section>`;
+  $("#edit-profile").onclick=editProfile;
   $("#profile-edit-history").onclick=()=>{state.profileEditing=!state.profileEditing;renderProfilePage(false);};
   $("#profile-reverse").onclick=()=>{state.profileReverse=!state.profileReverse;renderProfilePage(false);};
   $("#profile-options").onclick=profileHistoryOptions;
   try {
-    if(refresh || !state.profileHistory) state.profileHistory=checked(await db.rpc("mojo_watched_profile",{person:state.user.id}));
+    if(refresh || !state.profileHistory || !state.profileInfo) {
+      const [history,info]=await Promise.all([db.rpc("mojo_watched_profile",{person:state.user.id}),db.rpc("mojo_profile_details",{person:state.user.id})]);
+      if(version!==profileLoadVersion || state.tab!=="profile")return;
+      state.profileHistory=checked(history);state.profileInfo=checked(info);
+    }
     if(version!==profileLoadVersion || state.tab!=="profile") return;
     for(const movie of state.profileHistory.movies || []) {if(movie.personal_rating) state.personalRatings[movie.id]=movie.personal_rating;else delete state.personalRatings[movie.id];}
+    $("#profile-counts").innerHTML=profileCounts(state.profileInfo);
     renderProfileHistory();
   } catch(error) {
     if(version!==profileLoadVersion || state.tab!=="profile") return;
@@ -130,4 +128,32 @@ function streamingSettings() {
     });
   };
 
+}
+
+function profileCounts(info) {
+ const friendCount=Number(info?.friend_count || 0),groupCount=Number(info?.group_count || 0);
+ return `<span><strong>${friendCount}</strong> ${friendCount===1 ? "Friend" : "Friends"}</span><span><strong>${groupCount}</strong> ${groupCount===1 ? "Group" : "Groups"}</span>`;
+}
+function editProfile() {
+ openModal(`<h2>Edit profile</h2><form id="display-name-form" class="settings-form"><label for="display-name">Name</label><input id="display-name" maxlength="60" required value="${esc(state.displayName)}"><label for="profile-bio">Bio</label><textarea id="profile-bio" maxlength="500" rows="3">${esc(state.bio)}</textarea><button class="button">Save profile</button></form>`);
+ $("#display-name-form").onsubmit=event=>{event.preventDefault();run(event.target.querySelector("button"),async()=>{
+  const name=$("#display-name").value.trim(),bio=$("#profile-bio").value.trim();
+  if(!name)throw Error("Enter your name.");
+  const rows=checked(await db.from("user_profiles").update({display_name:name,bio}).eq("id",state.user.id).select("id"));
+  if(!rows.length)throw Error("Could not save your profile.");
+  state.displayName=name;state.bio=bio;if(state.profileInfo)Object.assign(state.profileInfo,{name,bio});closeModal();renderProfilePage(false);toast("Profile saved.");
+ });};
+}
+async function viewFriendProfile(person) {
+ closeModal();state.friendProfile=person;const request=++profileLoadVersion;
+ app.innerHTML='<p class="loading">Loading profile…</p>';
+ try {
+  const [infoResult,historyResult]=await Promise.all([db.rpc("mojo_profile_details",{person}),db.rpc("mojo_watched_profile",{person})]);
+  if(request!==profileLoadVersion || state.tab!=="friends" || state.friendProfile!==person)return;
+  const info=checked(infoResult),history=checked(historyResult);
+  app.innerHTML=`<section class="personal-profile"><button id="back-to-friends" class="link-button">← Friends</button><h1>${esc(info.name)}</h1>${info.bio ? `<p class="profile-bio-text">${esc(info.bio)}</p>` : ""}<div class="profile-counts">${profileCounts(info)}</div><h2>Watch history</h2><div id="friend-profile-history" class="grid">${history.movies.map((movie,index)=>`<div class="profile-history-card">${card(movie,index)}<p class="history-status">${movie.status==="dnf" ? "Did not finish" : "Watched"}${movie.personal_rating ? ` · Rating ${movie.personal_rating}/5` : ""}</p></div>`).join("") || '<p class="muted">No history entries yet.</p>'}</div></section>`;
+  $("#back-to-friends").onclick=()=>{state.friendProfile=null;friends();};
+  app.querySelectorAll("#friend-profile-history [data-movie]").forEach(button=>button.onclick=()=>run(null,()=>details(history.movies[Number(button.dataset.movie)],null,button,false,{name:info.name,person})));
+  revealScrollingCards();
+ }catch(error){if(state.tab==="friends" && state.friendProfile===person){app.innerHTML=empty("Could not load profile",error.message,'<button id="back-to-friends" class="button secondary">Back to friends</button>');$("#back-to-friends").onclick=()=>{state.friendProfile=null;friends();};}}
 }

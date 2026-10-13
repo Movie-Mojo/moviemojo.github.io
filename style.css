@@ -1212,3 +1212,26 @@ textarea:focus {
 .dnf-badge, .personal-rating-badge { font-size: 12px; color: var(--accent); margin: 4px 0; }
 
 .profile-history-card .history-status { margin: 6px 0 10px; color: var(--accent); font-size: 12px; }
+
+dialog:not([open]) { display: none !important; pointer-events: none; }
+.profile-bio-text { white-space: pre-wrap; overflow-wrap: anywhere; color: var(--muted); margin: 18px 0; }
+.profile-counts { display: flex; gap: 24px; margin: 18px 0; color: var(--muted); }
+.profile-counts strong { color: var(--text, #fff); margin-right: 4px; }
+.friends-section { margin: 26px 0; }
+.friends-section .section-row { margin: 0 0 12px; }
+.friend-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 16px 0; border-bottom: 1px solid var(--line); min-width: 0; }
+.friend-row small { display: block; margin-top: 4px; color: var(--muted); font-size: 12px; }
+.friend-profile-link { display: flex; align-items: center; gap: 12px; padding: 0; text-align: left; background: transparent; min-width: 0; }
+.friend-profile-link strong, .friend-row strong { overflow-wrap: anywhere; }
+.friend-avatar { display: grid; place-items: center; width: 44px; height: 44px; border-radius: 50%; flex-shrink: 0; background: #302940; color: var(--accent); }
+.friend-remove { background: transparent; color: var(--muted); flex-shrink: 0; }
+.friend-remove svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.6; }
+.friend-row-actions { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+.friend-row-actions .button { padding: 10px 14px; margin: 0; }
+.friends-connect { margin: 24px 0; padding: 16px; border: 1px solid var(--line); border-radius: 14px; }
+.friends-connect summary { cursor: pointer; font-weight: 600; }
+.friends-connect label { display: block; margin: 20px 0 8px; }
+.group-rating-panel { border-top: 1px solid var(--line); padding-top: 12px; margin: 14px 0; }
+.group-rating-panel h3 { font-size: 14px; margin: 0 0 10px; }
+.member-rating { display: flex; justify-content: space-between; gap: 12px; padding: 6px 0; font-size: 13px; }
+.member-rating span { overflow-wrap: anywhere; }

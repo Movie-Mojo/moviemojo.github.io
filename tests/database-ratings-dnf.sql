@@ -38,7 +38,7 @@ end $$;
 insert into public.movie_ratings(user_id,movie_id,stars) values(auth.uid(),current_setting('test.movie')::uuid,2);
 do $$ declare history jsonb; begin
  history=public.mojo_watched_profile(current_setting('test.user1')::uuid);
- if exists(select 1 from jsonb_array_elements(history->'movies') item where item->>'id'=current_setting('test.movie') and item->>'personal_rating' is not null) then raise exception 'friend history exposes private rating'; end if;
+ if not exists(select 1 from jsonb_array_elements(history->'movies') item where item->>'id'=current_setting('test.movie') and (item->>'personal_rating')::int=5) then raise exception 'friend cannot view rating'; end if;
 end $$;
 update public.group_movies set dnf=true,dnf_at=now(),watched=false,watched_at=null where id=current_setting('test.entry')::uuid;
 select set_config('request.jwt.claims',jsonb_build_object('sub',current_setting('test.user1'),'role','authenticated','aal','aal1')::text,true);
