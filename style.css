@@ -1083,9 +1083,10 @@ textarea:focus {
 .movie-detail-dialog #modal-content > .loading { min-height: min(650px, 72dvh); display: grid; place-items: center; }
 .detail-poster { aspect-ratio: 2 / 3; object-fit: cover; }
 
-.pills { position: relative; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0; }
-.pills::before { content: ""; position: absolute; top: 4px; bottom: 4px; left: 4px; width: calc((100% - 8px) / 2); border-radius: 9px; background: #302940; pointer-events: none; }
+.pills { position: relative; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0; }
+.pills::before { content: ""; position: absolute; top: 4px; bottom: 4px; left: 4px; width: calc((100% - 8px) / 3); border-radius: 9px; background: #302940; pointer-events: none; }
 .pills:has(#watched.active)::before { transform: translateX(100%); }
+.pills:has(#dnf.active)::before { transform: translateX(200%); }
 .pills .pill { position: relative; z-index: 1; background: transparent; }
 @media (prefers-reduced-motion: no-preference) { .pills::before { transition: transform 720ms cubic-bezier(.4,0,.2,1); } }
 
@@ -1196,3 +1197,16 @@ textarea:focus {
 .advanced-filters > .filter-grid { margin-bottom: 16px; }
 
 .movie-save .save-watched { display: inline-flex; padding: 10px 0 2px; font-size: 13px; }
+.personal-rating { margin: 14px 0; padding-top: 12px; border-top: 1px solid var(--line); }
+.personal-rating p { margin: 0 0 6px; font-weight: 600; }
+.personal-rating small { display: block; font-weight: 400; color: var(--muted); font-size: 12px; margin-top: 4px; }
+.rating-stars { display: flex; gap: 4px; }
+.rating-star { display: grid; place-items: center; flex: 1; min-width: 0; max-width: 44px; width: 0; height: 44px; padding: 6px; border: 0; border-radius: 8px; background: transparent; color: var(--muted); cursor: pointer; }
+.rating-star svg { width: 26px; height: 26px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linejoin: round; }
+.rating-star.filled { color: var(--accent); }
+.rating-star.filled svg { fill: currentColor; }
+.rating-star:focus-visible { outline: 2px solid var(--accent); }
+.rating-star:hover { background: #ffffff0a; }
+.rating-feedback { display: block; font-size: 12px; color: var(--muted); }
+.status-scope { font-size: 12px; margin: 8px 0; }
+.dnf-badge, .personal-rating-badge { font-size: 12px; color: var(--accent); margin: 4px 0; }

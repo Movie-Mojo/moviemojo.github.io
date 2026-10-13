@@ -76,6 +76,8 @@ const state = {
   movies: [],
   tab: "watchlist",
   watched: false,
+  dnf: false,
+  personalRatings: {},
   watchSort: "added",
   watchReverse: false,
   watchGenre: "",
@@ -186,7 +188,7 @@ function card(movie, index, entry = null) {
   const note = entry?.suggestion_note ? `<p class="card-note">“${esc(entry.suggestion_note)}”</p>` : "";
   const onList = !entry && state.movies.some(item=>String(item.movies.tmdb_id)===String(movie.id));
   const contributor = entry ? `<p class="added-by">Added by ${esc(contributorName(entry))}</p>${note}` : "";
-  const movieCard = `<button class="movie-card" data-movie="${index}" aria-label="Details for ${esc(movie.title)}"><div class="poster-wrap">${poster ? `<img loading="lazy" src="${esc(poster)}" alt="${esc(movie.title)} poster" onerror="this.hidden=true">` : '<div class="poster-fallback">✦</div>'}${movie.vote_average ? `<span class="score">★ ${Number(movie.vote_average).toFixed(1)}</span>` : ""}</div><h3>${esc(movie.title)}</h3><p>${esc(year)}</p>${contributor}${onList ? '<p class="on-list-badge">On this watchlist · Tap for details</p>' : ""}</button>`;
+  const movieCard = `<button class="movie-card" data-movie="${index}" aria-label="Details for ${esc(movie.title)}"><div class="poster-wrap">${poster ? `<img loading="lazy" src="${esc(poster)}" alt="${esc(movie.title)} poster" onerror="this.hidden=true">` : '<div class="poster-fallback">✦</div>'}${movie.vote_average ? `<span class="score">★ ${Number(movie.vote_average).toFixed(1)}</span>` : ""}</div><h3>${esc(movie.title)}</h3><p>${esc(year)}</p>${entry?.dnf ? '<p class="dnf-badge">Did not finish</p>' : ""}${entry && state.personalRatings[entry.movies.id] ? `<p class="personal-rating-badge">Your rating · ${state.personalRatings[entry.movies.id]}/5</p>` : ""}${contributor}${onList ? '<p class="on-list-badge">On this watchlist · Tap for details</p>' : ""}</button>`;
   if (!entry) return movieCard;
   return `<div class="movie-card-wrap">${movieCard}<button class="card-menu-button" data-card-menu="${index}" aria-label="Actions for ${esc(movie.title)}"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/></svg></button></div>`;
 }
@@ -273,7 +275,9 @@ function bindCards(list, entries = false) {
 function movieActions(entry, source = null) {
   ++detailRequest;
   const targets = state.groups.filter(g => g.group_id !== state.group?.group_id);
-  openModal(`<p class="eyebrow">Movie actions</p><h2>${esc(entry.movies.title)}</h2><div class="quick-movie-actions"><button id="quick-watched" class="button">${entry.watched ? "Move to watchlist" : "Mark watched"}</button><button id="quick-details" class="button secondary">Movie details</button>${targets.length ? `<label for="quick-target">Another watchlist</label><select id="quick-target">${targets.map(g => `<option value="${esc(g.group_id)}">${esc(g.group_name)}</option>`).join("")}</select><div class="quick-transfer"><button id="quick-copy" class="button secondary">Copy to list</button><button id="quick-move" class="button secondary">Move to list</button></div>` : ""}<button id="quick-remove" class="button danger">Remove from this list</button></div>`, source);
+  openModal(`<p class="eyebrow">Movie actions</p><h2>${esc(entry.movies.title)}</h2><div class="quick-movie-actions"><button id="quick-watched" class="button">${entry.watched ? "Move to watchlist" : "Mark watched"}</button><button id="quick-dnf" class="button secondary">${entry.dnf ? "Move to watchlist" : "Did not finish"}</button>${personalRatingPanel(entry)}<button id="quick-details" class="button secondary">Movie details</button>${targets.length ? `<label for="quick-target">Another watchlist</label><select id="quick-target">${targets.map(g => `<option value="${esc(g.group_id)}">${esc(g.group_name)}</option>`).join("")}</select><div class="quick-transfer"><button id="quick-copy" class="button secondary">Copy to list</button><button id="quick-move" class="button secondary">Move to list</button></div>` : ""}<button id="quick-remove" class="button danger">Remove from this list</button></div>`, source);
+  bindPersonalRating(entry);
+  $("#quick-dnf").onclick=e=>run(e.currentTarget,async()=>{await setDnf(entry,!entry.dnf);closeModal();});
   $("#quick-details").onclick = () => details(entry.movies, entry);
   $("#quick-watched").onclick = e => run(e.currentTarget, async () => { await setWatched(entry,!entry.watched); closeModal(); });
   for (const action of ["copy","move"]) {
@@ -288,7 +292,7 @@ function movieActions(entry, source = null) {
         const rows = checked(await db.from("group_movies").update({group_id:target}).eq("id",entry.id).select("id"));
         if (!rows.length) throw new Error("This movie could not be moved. Refresh and try again.");
       } else {
-        checked(await db.from("group_movies").insert({group_id:target,movie_id:entry.movies.id,added_by:state.user.id,suggestion_note:entry.suggestion_note || "",watched:entry.watched,watched_at:entry.watched_at || null}));
+        checked(await db.from("group_movies").insert({group_id:target,movie_id:entry.movies.id,added_by:state.user.id,suggestion_note:entry.suggestion_note || "",watched:entry.watched,watched_at:entry.watched_at || null,dnf:!!entry.dnf,dnf_at:entry.dnf_at || null}));
       }
       await loadMovies(); render(); closeModal(); toast(action === "move" ? "Moved to watchlist." : "Copied to watchlist.");
     });
@@ -313,10 +317,12 @@ async function loadGroups() {
 }
 async function loadMovies() {
   if (!state.group) { state.movies=[]; state.contributors={}; return; }
-  const [movieRows, contributorRows] = await Promise.all([
-    db.from("group_movies").select("id,watched,watched_at,added_by,added_at,suggestion_note,movies(id,title,description,poster_url,release_year,tmdb_id)").eq("group_id",state.group.group_id).order("added_at",{ascending:false}),
-    db.rpc("mojo_group_contributors",{target_group:state.group.group_id})
+  const [movieRows, contributorRows, ratingRows] = await Promise.all([
+    db.from("group_movies").select("id,watched,watched_at,dnf,dnf_at,added_by,added_at,suggestion_note,movies(id,title,description,poster_url,release_year,tmdb_id)").eq("group_id",state.group.group_id).order("added_at",{ascending:false}),
+    db.rpc("mojo_group_contributors",{target_group:state.group.group_id}),
+    db.from("movie_ratings").select("movie_id,stars").eq("user_id",state.user.id)
   ]);
+  state.personalRatings=Object.fromEntries((checked(ratingRows) || []).map(rating=>[rating.movie_id,rating.stars]));
   state.movies = (checked(movieRows) || []).filter(m=>m.movies);
   state.contributors = Object.fromEntries((checked(contributorRows) || []).map(p=>[p.user_id,p.display_name]));
 }
@@ -529,12 +535,13 @@ function watchSortMenu() {
 }
 function watchlist() {
   const previousPills = app.querySelector(".pills");
-  const entries = sortedWatchEntries(state.movies.filter((m) => !!m.watched === state.watched && (!state.watchGenre || watchMetadata.get(String(m.movies.tmdb_id))?.genres?.some(g=>String(g.id)===state.watchGenre))));
-  app.innerHTML = `<p class="eyebrow">Your movie night, sorted</p><h1>The watchlist.</h1><p class="subtitle">Less scrolling. More watching.</p><div class="toolbar"><select id="group-select" class="group-select" aria-label="Choose watchlist">${state.groups.map((g) => `<option value="${esc(g.group_id)}" ${g.group_id === state.group?.group_id ? "selected" : ""}>${esc(g.group_name)}</option>`).join("") || "<option>No watchlists yet</option>"}</select><button id="add-movie" class="button secondary">Find a movie</button></div><section class="picker-hero"><div><p class="eyebrow">Let fate take the remote</p><h2>Can't decide tonight?</h2><p>One random pick from your unwatched movies.<br>Every movie gets an equal shot.</p></div><button class="button" id="pick">✦ Pick tonight</button></section><div class="section-row"><div class="pills"><button class="pill ${!state.watched ? "active" : ""}" id="unwatched">To watch</button><button class="pill ${state.watched ? "active" : ""}" id="watched">Watched</button></div><div class="watch-sort-controls"><button id="watch-sort" class="button secondary ${state.watchGenre || state.watchSort!=="added" ? "options-active" : ""}" aria-label="Sort and filter movies" title="Sort and filter movies"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/><circle cx="9" cy="6" r="2"/><circle cx="15" cy="12" r="2"/><circle cx="9" cy="18" r="2"/></svg></button><button id="watch-reverse" class="button secondary" aria-label="Reverse sort order" aria-pressed="${state.watchReverse}" title="Reverse sort order"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4v16m-4-4 4 4 4-4M17 20V4m-4 4 4-4 4 4"/></svg></button><span class="count">${entries.length} movie${entries.length === 1 ? "" : "s"}</span></div></div><div class="grid">${entries.map((m, i) => card(m.movies, i, m)).join("") || empty(state.watchGenre ? "No movies in this genre." : state.group ? "The opening scene." : "Bring your people together.", state.watchGenre ? "Choose All genres to see your full list." : state.group ? "Add a few movies to get your next movie night started." : "Create a group, or a watchlist just for you.", state.watchGenre ? '<button id="clear-watch-genre" class="button">Clear genre filter</button>' : `<button id="empty-action" class="button">${state.group ? "Find a movie" : "Create a watchlist"}</button>`)}</div>`;
+  const entries = sortedWatchEntries(state.movies.filter((m) => (state.dnf ? !!m.dnf : !m.dnf && !!m.watched === state.watched) && (!state.watchGenre || watchMetadata.get(String(m.movies.tmdb_id))?.genres?.some(g=>String(g.id)===state.watchGenre))));
+  app.innerHTML = `<p class="eyebrow">Your movie night, sorted</p><h1>The watchlist.</h1><p class="subtitle">Less scrolling. More watching.</p><div class="toolbar"><select id="group-select" class="group-select" aria-label="Choose watchlist">${state.groups.map((g) => `<option value="${esc(g.group_id)}" ${g.group_id === state.group?.group_id ? "selected" : ""}>${esc(g.group_name)}</option>`).join("") || "<option>No watchlists yet</option>"}</select><button id="add-movie" class="button secondary">Find a movie</button></div><section class="picker-hero"><div><p class="eyebrow">Let fate take the remote</p><h2>Can't decide tonight?</h2><p>One random pick from your unwatched movies.<br>Every movie gets an equal shot.</p></div><button class="button" id="pick">✦ Pick tonight</button></section><div class="section-row"><div class="pills"><button class="pill ${!state.watched && !state.dnf ? "active" : ""}" id="unwatched">To watch</button><button class="pill ${state.watched && !state.dnf ? "active" : ""}" id="watched">Watched</button><button class="pill ${state.dnf ? "active" : ""}" id="dnf" title="Did not finish" aria-label="Did not finish movies">DNF</button></div><div class="watch-sort-controls"><button id="watch-sort" class="button secondary ${state.watchGenre || state.watchSort!=="added" ? "options-active" : ""}" aria-label="Sort and filter movies" title="Sort and filter movies"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/><circle cx="9" cy="6" r="2"/><circle cx="15" cy="12" r="2"/><circle cx="9" cy="18" r="2"/></svg></button><button id="watch-reverse" class="button secondary" aria-label="Reverse sort order" aria-pressed="${state.watchReverse}" title="Reverse sort order"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4v16m-4-4 4 4 4-4M17 20V4m-4 4 4-4 4 4"/></svg></button><span class="count">${entries.length} movie${entries.length === 1 ? "" : "s"}</span></div></div><div class="grid">${entries.map((m, i) => card(m.movies, i, m)).join("") || empty(state.watchGenre ? "No movies in this genre." : state.group ? "The opening scene." : "Bring your people together.", state.watchGenre ? "Choose All genres to see your full list." : state.group ? "Add a few movies to get your next movie night started." : "Create a group, or a watchlist just for you.", state.watchGenre ? '<button id="clear-watch-genre" class="button">Clear genre filter</button>' : `<button id="empty-action" class="button">${state.group ? "Find a movie" : "Create a watchlist"}</button>`)}</div>`;
   if (previousPills) {
     app.querySelector(".pills").replaceWith(previousPills);
-    previousPills.querySelector("#unwatched").classList.toggle("active", !state.watched);
-    previousPills.querySelector("#watched").classList.toggle("active", state.watched);
+    previousPills.querySelector("#unwatched").classList.toggle("active", !state.watched && !state.dnf);
+    previousPills.querySelector("#watched").classList.toggle("active", state.watched && !state.dnf);
+    previousPills.querySelector("#dnf").classList.toggle("active",state.dnf);
   }
   $("#watch-sort").onclick = watchSortMenu;
   $("#watch-reverse").onclick = () => { state.watchReverse=!state.watchReverse; watchlist(); };
@@ -542,15 +549,16 @@ function watchlist() {
     run(e.currentTarget, () => switchGroup(e.target.value));
   $("#add-movie").onclick = () => go("discover");
   $("#unwatched").onclick = () => {
-    state.watched = false;
+    state.watched = false; state.dnf=false;
     watchlist();
   };
   $("#watched").onclick = () => {
-    state.watched = true;
+    state.watched = true; state.dnf=false;
     watchlist();
   };
+  $("#dnf").onclick=()=>{state.dnf=true;state.watched=false;watchlist();};
   $("#pick").onclick = pick;
-  $(".picker-hero").hidden = !state.movies.some(movie => !movie.watched);
+  $(".picker-hero").hidden = !state.movies.some(movie => !movie.watched && !movie.dnf);
   if ($("#empty-action"))
     $("#empty-action").onclick = () => go(state.group ? "discover" : "groups");
   if ($("#clear-watch-genre")) $("#clear-watch-genre").onclick = () => { state.watchGenre=""; watchlist(); };
@@ -565,7 +573,7 @@ function randomIndex(length) {
   return n[0] % length;
 }
 function pick() {
-  const candidates = state.movies.filter((m) => !m.watched);
+  const candidates = state.movies.filter((m) => !m.watched && !m.dnf);
   if (!candidates.length) {
     toast("Add an unwatched movie to this list first.");
     return;
@@ -1153,7 +1161,7 @@ async function details(movie, entry = null, source = null) {
     ];
   const region = state.filters.watch_region || state.streamingRegion;
   openModal(
-    `${poster ? `<img class="detail-poster" src="${esc(poster)}" alt="${esc(movie.title)} poster">` : ""}<div class="detail-heading"><p class="eyebrow">${entry ? "On your watchlist" : "Worth a watch"}</p><h2>${esc(data.title || movie.title)}</h2><p class="muted">${esc(data.release_date?.slice(0, 4) || movie.release_year || "")} ${data.runtime ? "· " + data.runtime + " min" : ""}</p>${data.vote_average ? `<p>★ ${Number(data.vote_average).toFixed(1)} <span class="muted">TMDB audience score</span></p>` : ""}${trailer || data.external_ids?.imdb_id ? `<div class="movie-links">${trailer ? `<a class="movie-link" href="https://www.youtube.com/watch?v=${encodeURIComponent(trailer.key)}" target="_blank" rel="noopener" aria-label="Watch trailer on YouTube"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 5 11 7-11 7Z"/></svg> Trailer</a>` : ""}${data.external_ids?.imdb_id ? `<a class="movie-link" href="https://www.imdb.com/title/${encodeURIComponent(data.external_ids.imdb_id)}/" target="_blank" rel="noopener" aria-label="View movie on IMDb">IMDb <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 4h6v6M20 4l-9 9M10 4H5a1 1 0 0 0-1 1v14a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-5"/></svg></a>` : ""}</div>` : ""}</div>${!entry ? `<div class="movie-save"><label for="save-group">Add to watchlist</label><div class="movie-save-row"><select id="save-group" ${!state.groups.length ? "disabled" : ""}>${state.groups.length ? state.groups.map((g) => `<option value="${g.group_id}" ${g.group_id === state.group?.group_id ? "selected" : ""}>${esc(g.group_name)}</option>`).join("") : '<option>Create a watchlist first</option>'}</select><button id="save-movie" class="button" ${!state.groups.length ? "disabled" : ""}>Add</button></div><button id="save-watched" type="button" class="link-button save-watched" ${!state.groups.length ? "disabled" : ""}>Add as already watched</button><details class="save-note"><summary>Add a note (optional)</summary><label for="suggestion-note">Suggestion note</label><textarea id="suggestion-note" maxlength="500" rows="2" placeholder="Why should we watch this?"></textarea></details></div>` : ""}${entry ? `<div class="movie-save movie-watchlist"><button id="toggle-watched" class="button">${entry.watched ? "Move to watchlist" : "Mark watched"}</button><div class="suggestion"><p class="muted">Added by ${esc(contributorName(entry))}</p>${entry.suggestion_note ? `<blockquote>${esc(entry.suggestion_note)}</blockquote>` : ""}${entry.added_by === state.user.id ? `<details class="save-note"><summary>${entry.suggestion_note ? "Edit note" : "Add a note (optional)"}</summary><form id="note-form"><label for="edit-note">Your suggestion note (optional)</label><textarea id="edit-note" maxlength="500" rows="2" placeholder="Why should we watch this?">${esc(entry.suggestion_note || "")}</textarea><button class="button secondary" type="submit">Save note</button></form></details>` : ""}</div></div>` : ""}<p class="overview">${esc(data.overview || movie.description || "No synopsis available for this movie.")}</p>${watchOptions(providers, region)}${entry ? `<div class="details-actions"><button id="remove-movie" class="button danger">Remove</button></div>` : ""}`,
+    `${poster ? `<img class="detail-poster" src="${esc(poster)}" alt="${esc(movie.title)} poster">` : ""}<div class="detail-heading"><p class="eyebrow">${entry ? "On your watchlist" : "Worth a watch"}</p><h2>${esc(data.title || movie.title)}</h2><p class="muted">${esc(data.release_date?.slice(0, 4) || movie.release_year || "")} ${data.runtime ? "· " + data.runtime + " min" : ""}</p>${data.vote_average ? `<p>★ ${Number(data.vote_average).toFixed(1)} <span class="muted">TMDB audience score</span></p>` : ""}${trailer || data.external_ids?.imdb_id ? `<div class="movie-links">${trailer ? `<a class="movie-link" href="https://www.youtube.com/watch?v=${encodeURIComponent(trailer.key)}" target="_blank" rel="noopener" aria-label="Watch trailer on YouTube"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 5 11 7-11 7Z"/></svg> Trailer</a>` : ""}${data.external_ids?.imdb_id ? `<a class="movie-link" href="https://www.imdb.com/title/${encodeURIComponent(data.external_ids.imdb_id)}/" target="_blank" rel="noopener" aria-label="View movie on IMDb">IMDb <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 4h6v6M20 4l-9 9M10 4H5a1 1 0 0 0-1 1v14a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-5"/></svg></a>` : ""}</div>` : ""}</div>${!entry ? `<div class="movie-save"><label for="save-group">Add to watchlist</label><div class="movie-save-row"><select id="save-group" ${!state.groups.length ? "disabled" : ""}>${state.groups.length ? state.groups.map((g) => `<option value="${g.group_id}" ${g.group_id === state.group?.group_id ? "selected" : ""}>${esc(g.group_name)}</option>`).join("") : '<option>Create a watchlist first</option>'}</select><button id="save-movie" class="button" ${!state.groups.length ? "disabled" : ""}>Add</button></div><button id="save-watched" type="button" class="link-button save-watched" ${!state.groups.length ? "disabled" : ""}>Add as already watched</button><details class="save-note"><summary>Add a note (optional)</summary><label for="suggestion-note">Suggestion note</label><textarea id="suggestion-note" maxlength="500" rows="2" placeholder="Why should we watch this?"></textarea></details></div>` : ""}${entry ? `<div class="movie-save movie-watchlist"><button id="toggle-watched" class="button">${entry.watched ? "Move to watchlist" : "Mark watched"}</button><button id="toggle-dnf" class="button secondary">${entry.dnf ? "Move to watchlist" : "Did not finish"}</button><p class="muted status-scope">Status applies to everyone in this group.</p>${personalRatingPanel(entry)}<div class="suggestion"><p class="muted">Added by ${esc(contributorName(entry))}</p>${entry.suggestion_note ? `<blockquote>${esc(entry.suggestion_note)}</blockquote>` : ""}${entry.added_by === state.user.id ? `<details class="save-note"><summary>${entry.suggestion_note ? "Edit note" : "Add a note (optional)"}</summary><form id="note-form"><label for="edit-note">Your suggestion note (optional)</label><textarea id="edit-note" maxlength="500" rows="2" placeholder="Why should we watch this?">${esc(entry.suggestion_note || "")}</textarea><button class="button secondary" type="submit">Save note</button></form></details>` : ""}</div></div>` : ""}<p class="overview">${esc(data.overview || movie.description || "No synopsis available for this movie.")}</p>${watchOptions(providers, region)}${entry ? `<div class="details-actions"><button id="remove-movie" class="button danger">Remove</button></div>` : ""}`,
   );
   if (entry && state.tab === "discover") {
     const memberships = destinationMemberships;
@@ -1189,6 +1197,8 @@ async function details(movie, entry = null, source = null) {
       });
     };
   if (entry) {
+    bindPersonalRating(entry);
+    $("#toggle-dnf").onclick=e=>run(e.currentTarget,async()=>{await setDnf(entry,!entry.dnf);closeModal();});
     $("#toggle-watched").onclick = (e) =>
       run(e.currentTarget, async () => {
         await setWatched(entry, !entry.watched);
@@ -1234,6 +1244,8 @@ async function setWatched(entry, value) {
       .from("group_movies")
       .update({
         watched: value,
+        dnf: false,
+        dnf_at: null,
         watched_at: value ? new Date().toISOString() : null,
       })
       .eq("id", entry.id)
@@ -1241,6 +1253,7 @@ async function setWatched(entry, value) {
   );
   if (!rows.length)
     throw new Error("This movie could not be updated. Refresh and try again.");
+  state.profileHistory=null;
   await loadMovies();
   render();
   toast(value ? "Added to watched movies." : "Moved back to your watchlist.");
@@ -1575,6 +1588,7 @@ async function logout() {
 }
 async function initialize(user) {
   const version = ++authVersion;
+  state.personalRatings={};
   state.user = user;
   state.approved = false;
   state.mfaRequired = false;

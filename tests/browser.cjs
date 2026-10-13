@@ -191,6 +191,7 @@ const fixture = {
                 return chain;
               },
               eq(key,value) {
+                (chain.filters ||= {})[key]=value;
                 if(key === "movie_id") chain.duplicateCheck = true;
                 return chain;
               },
@@ -215,6 +216,7 @@ const fixture = {
                 return Promise.resolve({ data: { id: "saved" }, error: null });
               },
               update(value) {
+                if(table === "movie_ratings") {chain.ratingUpdate=value;chain.changed=true;return chain;}
                 if (table === "user_profiles") {
                   if (value.streaming_services)
                     fixture.services = value.streaming_services;
@@ -222,19 +224,28 @@ const fixture = {
                   if (value.display_name)
                     fixture.displayName = value.display_name;
                 } else if (value.group_id) fixture.lastMove = value;
-                else fixture.movies[0].watched = value.watched;
+                else {fixture.movies[0].watched = value.watched;if(value.dnf!==undefined){fixture.movies[0].dnf=value.dnf;fixture.movies[0].dnf_at=value.dnf_at;}}
                 chain.changed = true;
                 return chain;
               },
               insert(value) {
+                if(table === "movie_ratings") {(fixture.personalRatings ||= []).push(value);return chain;}
                 fixture.lastCopy = value;
                 if(fixture.memberships && value.group_id) fixture.memberships.push({group_id:value.group_id});
                 return chain;
               },
               delete() {
+                chain.deleting=true;
                 return chain;
               },
               then(resolve) {
+                if(table === "movie_ratings") {
+                  const matches=row=>Object.entries(chain.filters || {}).every(([key,value])=>row[key]===value);
+                  const rows=(fixture.personalRatings || []).filter(matches);
+                  if(chain.ratingUpdate)rows.forEach(row=>Object.assign(row,chain.ratingUpdate));
+                  if(chain.deleting)fixture.personalRatings=(fixture.personalRatings || []).filter(row=>!matches(row));
+                  return Promise.resolve({data:rows,error:null}).then(resolve);
+                }
                 return Promise.resolve({
                   data: chain.membershipRead ? (fixture.memberships || []) : chain.duplicateCheck ? [] : chain.changed
                     ? [{ id: "list1" }]
@@ -809,6 +820,32 @@ const fixture = {
   const pending = page.locator(".scroll-pending").first();
   await pending.evaluate(el=>el.scrollIntoView({block:"center"}));
   await page.waitForFunction(() => [...document.querySelectorAll(".grid > *")].some(el => el.getAnimations().some(a=>a.effect.getTiming().duration===900)), null, {timeout:3000});
+  await page.setViewportSize({width:390,height:844});
+  await page.evaluate(async()=>{state.tab="watchlist";state.watched=false;state.dnf=false;await loadMovies();render();movieActions(state.movies[0]);});
+  await page.getByRole("button",{name:"Rate 4 stars",exact:true}).click();
+  await page.waitForFunction(()=>testData.personalRatings?.[0]?.stars===4);
+  await page.locator("#quick-dnf").click();await page.locator("#close-modal").waitFor({state:"hidden"});
+  assert.equal(await page.evaluate(()=>testData.movies[0].dnf),true);
+  assert.equal(await page.evaluate(()=>testData.movies[0].watched),false);
+  await page.locator("#dnf").click();assert.equal(await page.locator(".movie-card").count(),1);
+  await page.evaluate(()=>movieActions(state.movies[0]));
+  assert.equal(await page.locator(".rating-star.filled").count(),4);
+  await page.screenshot({path:"/tmp/mojo-dnf-rating-mobile.png"});
+  await page.locator("#close-modal").click();
+  await page.evaluate(async()=>{state.user={...state.user,id:"99999999-9999-9999-9999-999999999999"};await loadMovies();render();movieActions(state.movies[0]);});
+  assert.equal(await page.locator(".rating-star.filled").count(),0,"other member starts unrated");
+  await page.getByRole("button",{name:"Rate 2 stars",exact:true}).click();
+  await page.waitForFunction(()=>testData.personalRatings?.length===2);
+  await page.locator("#close-modal").click();
+  await page.evaluate(async()=>{state.user=testData.user;await loadMovies();render();movieActions(state.movies[0]);});
+  assert.equal(await page.locator(".rating-star.filled").count(),4,"first member rating remains independent");
+  await page.locator("#quick-watched").click();await page.locator("#close-modal").waitFor({state:"hidden"});
+  assert.equal(await page.evaluate(()=>testData.movies[0].dnf),false);
+  assert.equal(await page.evaluate(()=>testData.movies[0].watched),true);
+  assert.equal(await page.evaluate(()=>state.personalRatings.m1),4,"status changes preserve personal rating");
+  await page.evaluate(()=>movieActions(state.movies[0]));
+  await page.locator(".clear-rating").click();await page.waitForFunction(()=>!state.personalRatings.m1);
+  await page.locator("#close-modal").click();
   await page.evaluate(async()=>{state.tab="discover";state.movies=[];await details({id:27205,title:"Inception"});});
   await page.locator("#save-watched").waitFor();
   await page.locator("#save-group").selectOption("22222222-2222-2222-2222-222222222222");
