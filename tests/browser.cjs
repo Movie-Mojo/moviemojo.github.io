@@ -71,6 +71,7 @@ const fixture = {
   const page = await browser.newPage({
     viewport: { width: 390, height: 844 },
     deviceScaleFactor: 1,
+    hasTouch: true,
   });
   const errors = [];
   page.on("pageerror", (e) => errors.push(e.message));
@@ -708,6 +709,18 @@ const fixture = {
     assert(links[1].left>=links[0].right,"movie links must not overlap");
     assert(await page.locator("#modal-content").evaluate(el=>el.scrollWidth<=el.clientWidth),"popup overflow at "+width);
   }
+  await page.waitForTimeout(750);
+  // Resizing a live movie popup must preserve it and keep all controls reachable.
+  for (const viewport of [{width:382,height:580},{width:594,height:368},{width:669,height:867},{width:951,height:585},{width:385,height:571}]) {
+    await page.setViewportSize(viewport);
+    await page.evaluate(()=>new Promise(requestAnimationFrame));
+    assert(await page.locator("#modal").isVisible(), "resize closed movie details");
+    const rail = await page.evaluate(()=>matchMedia("(pointer: coarse)").matches) && viewport.width >= 560 && viewport.height <= 700 && viewport.width / viewport.height >= 1.2;
+    assert.equal(await page.locator("#navigation").evaluate(el=>getComputedStyle(el).flexDirection),rail ? "column" : "row", "navigation layout at "+JSON.stringify(viewport));
+    assert(await page.locator("#modal").evaluate(el=>{const r=el.getBoundingClientRect();return r.top>=0 && r.bottom<=innerHeight+1 && r.left>=0 && r.right<=innerWidth+1;}), "movie popup outside viewport "+JSON.stringify(viewport));
+    assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth), "horizontal overflow "+JSON.stringify(viewport));
+  }
+  await page.screenshot({path:"/tmp/mojo-duo-inner.png"});
   await page.setViewportSize({width:390,height:844});
   await page.screenshot({path:"/tmp/mojo-mobile-movie-links.png"});
   await page.locator("#copy-watchlist").click();
