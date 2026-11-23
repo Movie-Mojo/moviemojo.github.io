@@ -715,8 +715,9 @@ const fixture = {
     await page.setViewportSize(viewport);
     await page.evaluate(()=>new Promise(requestAnimationFrame));
     assert(await page.locator("#modal").isVisible(), "resize closed movie details");
-    const rail = await page.evaluate(()=>matchMedia("(pointer: coarse)").matches) && (viewport.width >= 600 || (viewport.width >= 560 && viewport.height <= 700 && viewport.width / viewport.height >= 1.2));
+    const rail = await page.evaluate(()=>matchMedia("(pointer: coarse)").matches) && (viewport.width >= 600 || (viewport.width >= 360 && viewport.height <= 700 && viewport.width / viewport.height >= 0.6));
     assert.equal(await page.locator("#navigation").evaluate(el=>getComputedStyle(el).flexDirection),rail ? "column" : "row", "navigation layout at "+JSON.stringify(viewport));
+    if(rail) assert(await page.locator("#navigation").evaluate(el=>getComputedStyle(el).position==="fixed" && Math.round(el.getBoundingClientRect().width)===64), "rail must have a fixed 64px width");
     assert(await page.locator("#modal").evaluate(el=>{const r=el.getBoundingClientRect();return r.top>=0 && r.bottom<=innerHeight+1 && r.left>=0 && r.right<=innerWidth+1;}), "movie popup outside viewport "+JSON.stringify(viewport));
     assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth), "horizontal overflow "+JSON.stringify(viewport));
   }
